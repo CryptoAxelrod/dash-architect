@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Date",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Product Category",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Sales Amount",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Net Profit",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

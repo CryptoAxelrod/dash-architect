@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dash Architect Viewer: content add-in (the resizable dashboard object inside a sheet).
+     Replace every YOUR-GITHUB-NAME with your GitHub user name before installing. -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="ContentApp">
+  <Id>6ea9c27d-91bb-4fce-8b06-e9bc9483ad37</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Dash Architect</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Dash Architect Viewer"/>
+  <Description DefaultValue="Shows a Dash Architect dashboard inside the worksheet."/>
+  <IconUrl DefaultValue="https://cryptoaxelrod.github.io/test-dash/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://Ycryptoaxelrod.github.io/test-dash/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://cryptoaxelrod.github.io/test-dash/"/>
+  <Hosts>
+    <Host Name="Workbook"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://cryptoaxelrod.github.io/test-dash/dashboard.html"/>
+    <RequestedWidth>960</RequestedWidth>
+    <RequestedHeight>720</RequestedHeight>
+  </DefaultSettings>
+  <Permissions>ReadDocument</Permissions>
+  <AllowSnapshot>true</AllowSnapshot>
+</OfficeApp>

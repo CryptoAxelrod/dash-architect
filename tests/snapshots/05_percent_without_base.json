@@ -1,0 +1,90 @@
+[
+  {
+    "name": "Month",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Region",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Segment",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Conversion Rate",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "Retention Rate",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "Gross Margin",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "Churn Rate",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "NPS",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

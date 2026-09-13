@@ -1,0 +1,68 @@
+[
+  {
+    "name": "Txn Date",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Store",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "text",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "default_text",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Category",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Payment Type",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Basket Items",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Basket Value",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

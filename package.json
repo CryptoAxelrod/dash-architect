@@ -1,0 +1,9 @@
+{
+  "name": "dash-architect",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Deterministic dashboard generation for Excel — see CLAUDE.md and SPEC.md.",
+  "scripts": {
+    "test": "node --test tests"
+  }
+}

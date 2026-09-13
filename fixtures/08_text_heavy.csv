@@ -1,0 +1,601 @@
+﻿Ticket ID,Opened,Customer,Email,Priority,Channel,Subject,Resolution Hours,Reopened
+T-20000,10.09.2025,Anna Silva,anna.silva24@example.com,Urgent,Chat,Feature request: bulk edit,4.1,2
+T-20001,09.03.2025,Tom Tanaka,tom.tanaka28@example.com,Low,Phone,Cannot export report to PDF,52.5,0
+T-20002,03.06.2025,Tom Costa,tom.costa66@example.com,Normal,Email,Feature request: bulk edit,29.7,0
+T-20003,08.06.2025,Elena Silva,elena.silva78@example.com,Normal,Email,Feature request: bulk edit 573,23,0
+T-20004,04.04.2025,Priya Novak,priya.novak14@example.com,High,Phone,Data import stops at 40 percent 270,92.7,0
+T-20005,13.07.2025,Yuki Costa,yuki.costa16@example.com,Urgent,Email,Feature request: bulk edit,36.4,2
+T-20006,21.07.2025,Omar Sharma,omar.sharma64@example.com,Normal,Chat,Invoice amount does not match the order 605,32.2,0
+T-20007,17.06.2025,Diego Silva,diego.silva3@example.com,High,Phone,Invoice amount does not match the order 121,36,2
+T-20008,29.03.2025,Tom Tanaka,tom.tanaka70@example.com,Urgent,Chat,Need help configuring SSO 24,20.1,1
+T-20009,26.06.2025,Omar Silva,omar.silva31@example.com,High,Email,Login fails after password reset,58.2,1
+T-20010,17.05.2025,Marcus Haddad,marcus.haddad85@example.com,Normal,Phone,Duplicate records after sync,80.1,1
+T-20011,13.08.2025,Yuki Haddad,yuki.haddad24@example.com,Low,Phone,Need help configuring SSO 22,44.3,0
+T-20012,05.09.2025,Tom Haddad,tom.haddad15@example.com,Low,Chat,Duplicate records after sync,16.4,0
+T-20013,02.03.2025,Marcus Sharma,marcus.sharma30@example.com,High,Phone,Dashboard loads very slowly 807,56.1,2
+T-20014,20.05.2025,Omar Berg,omar.berg16@example.com,Normal,Chat,Need help configuring SSO 569,13.8,0
+T-20015,21.07.2025,Yuki Haddad,yuki.haddad4@example.com,Urgent,Chat,Cannot export report to PDF,20.1,0
+T-20016,16.08.2025,Omar Haddad,omar.haddad7@example.com,Normal,Email,Cannot export report to PDF,76.8,0
+T-20017,14.06.2025,Elena Berg,elena.berg11@example.com,Normal,Chat,Invoice amount does not match the order,72.5,0
+T-20018,16.03.2025,Elena Costa,elena.costa64@example.com,Normal,Email,Login fails after password reset 870,70.9,0
+T-20019,01.06.2025,Priya Sharma,priya.sharma95@example.com,Normal,Chat,Dashboard loads very slowly,10,1
+T-20020,20.04.2025,Priya Haddad,priya.haddad34@example.com,Urgent,Chat,Invoice amount does not match the order,66.3,1
+T-20021,14.03.2025,Omar Sharma,omar.sharma72@example.com,Normal,Chat,Duplicate records after sync 944,52.1,0
+T-20022,24.04.2025,Omar Silva,omar.silva25@example.com,Urgent,Email,Duplicate records after sync 304,75.8,0
+T-20023,22.08.2025,Omar Sharma,omar.sharma8@example.com,Urgent,Chat,Invoice amount does not match the order,64.2,0
+T-20024,23.03.2025,Tom Novak,tom.novak6@example.com,Urgent,Email,Cannot export report to PDF 626,11.4,2
+T-20025,23.08.2025,Anna Sharma,anna.sharma45@example.com,Urgent,Email,Dashboard loads very slowly 486,38.4,0
+T-20026,12.07.2025,Yuki Haddad,yuki.haddad76@example.com,Urgent,Email,Invoice amount does not match the order,67.3,1
+T-20027,26.07.2025,Anna Haddad,anna.haddad70@example.com,Low,Chat,Need help configuring SSO 271,95.1,2
+T-20028,20.08.2025,Yuki Silva,yuki.silva73@example.com,Low,Chat,Invoice amount does not match the order 56,35.1,1
+T-20029,07.06.2025,Anna Silva,anna.silva35@example.com,Low,Phone,Duplicate records after sync 986,51.5,0
+T-20030,05.03.2025,Tom Sharma,tom.sharma23@example.com,Low,Email,Duplicate records after sync,35.9,0
+T-20031,08.03.2025,Marcus Sharma,marcus.sharma71@example.com,Low,Phone,Need help configuring SSO 18,93.3,0
+T-20032,05.07.2025,Anna Novak,anna.novak47@example.com,Low,Chat,Duplicate records after sync,32.9,0
+T-20033,17.06.2025,Diego Haddad,diego.haddad72@example.com,Low,Email,Cannot export report to PDF 42,27.9,0
+T-20034,03.06.2025,Diego Sharma,diego.sharma12@example.com,Low,Phone,Duplicate records after sync 57,46.1,0
+T-20035,11.05.2025,Marcus Silva,marcus.silva20@example.com,Urgent,Chat,Login fails after password reset 77,12.4,2
+T-20036,07.08.2025,Marcus Sharma,marcus.sharma89@example.com,Low,Chat,Invoice amount does not match the order 954,8.9,0
+T-20037,12.09.2025,Marcus Sharma,marcus.sharma44@example.com,High,Phone,Invoice amount does not match the order,82.4,1
+T-20038,20.05.2025,Elena Novak,elena.novak29@example.com,Low,Chat,Invoice amount does not match the order 967,15.3,1
+T-20039,17.04.2025,Tom Berg,tom.berg48@example.com,High,Phone,Cannot export report to PDF,59.5,0
+T-20040,09.06.2025,Yuki Wright,yuki.wright78@example.com,Low,Email,Invoice amount does not match the order,78.6,1
+T-20041,03.08.2025,Marcus Berg,marcus.berg23@example.com,Urgent,Chat,Cannot export report to PDF 780,5.8,2
+T-20042,14.09.2025,Omar Berg,omar.berg49@example.com,Low,Phone,Dashboard loads very slowly,51,0
+T-20043,17.08.2025,Omar Wright,omar.wright61@example.com,Urgent,Email,Dashboard loads very slowly,69.7,0
+T-20044,17.04.2025,Tom Sharma,tom.sharma77@example.com,Urgent,Email,Cannot export report to PDF 532,54.7,0
+T-20045,25.03.2025,Diego Berg,diego.berg44@example.com,Urgent,Chat,Data import stops at 40 percent,13.3,0
+T-20046,09.04.2025,Omar Wright,omar.wright16@example.com,Normal,Chat,Duplicate records after sync,17.9,0
+T-20047,12.03.2025,Marcus Wright,marcus.wright11@example.com,High,Chat,Invoice amount does not match the order,2.9,0
+T-20048,25.06.2025,Omar Silva,omar.silva65@example.com,High,Phone,Data import stops at 40 percent 876,7.4,2
+T-20049,20.03.2025,Priya Wright,priya.wright16@example.com,Low,Email,Need help configuring SSO,67.5,2
+T-20050,08.07.2025,Omar Berg,omar.berg70@example.com,High,Phone,Need help configuring SSO 270,94.9,0
+T-20051,21.07.2025,Priya Sharma,priya.sharma19@example.com,Urgent,Email,Need help configuring SSO,43.9,0
+T-20052,06.08.2025,Yuki Silva,yuki.silva71@example.com,Urgent,Phone,Invoice amount does not match the order 587,76.5,0
+T-20053,30.04.2025,Diego Wright,diego.wright36@example.com,Urgent,Phone,Dashboard loads very slowly,4.6,0
+T-20054,28.04.2025,Marcus Sharma,marcus.sharma94@example.com,Normal,Chat,Duplicate records after sync,63.8,1
+T-20055,05.05.2025,Yuki Wright,yuki.wright30@example.com,Low,Chat,Need help configuring SSO 406,69.5,1
+T-20056,18.03.2025,Yuki Silva,yuki.silva56@example.com,Urgent,Chat,Dashboard loads very slowly,75.4,1
+T-20057,25.03.2025,Yuki Costa,yuki.costa46@example.com,Normal,Chat,Need help configuring SSO 377,90.6,1
+T-20058,08.07.2025,Yuki Haddad,yuki.haddad23@example.com,Urgent,Email,Feature request: bulk edit 623,80,1
+T-20059,15.06.2025,Yuki Costa,yuki.costa3@example.com,Low,Phone,Cannot export report to PDF,24.1,2
+T-20060,30.06.2025,Marcus Wright,marcus.wright18@example.com,Normal,Chat,Need help configuring SSO,59.5,0
+T-20061,05.05.2025,Marcus Haddad,marcus.haddad86@example.com,Low,Phone,Feature request: bulk edit 886,15.2,0
+T-20062,12.07.2025,Diego Costa,diego.costa54@example.com,Urgent,Email,Dashboard loads very slowly,13.7,1
+T-20063,05.05.2025,Diego Wright,diego.wright8@example.com,Urgent,Phone,Cannot export report to PDF 272,89.6,2
+T-20064,25.05.2025,Omar Haddad,omar.haddad65@example.com,Low,Chat,Need help configuring SSO 762,85.1,0
+T-20065,07.05.2025,Priya Tanaka,priya.tanaka97@example.com,Urgent,Phone,Duplicate records after sync,16.9,0
+T-20066,03.07.2025,Marcus Tanaka,marcus.tanaka29@example.com,Low,Email,Need help configuring SSO,18.3,1
+T-20067,25.05.2025,Priya Costa,priya.costa72@example.com,Low,Phone,Need help configuring SSO 472,32.7,0
+T-20068,27.07.2025,Anna Novak,anna.novak87@example.com,Low,Phone,Login fails after password reset,39,2
+T-20069,11.07.2025,Elena Berg,elena.berg84@example.com,High,Chat,Duplicate records after sync 193,2.7,0
+T-20070,24.07.2025,Priya Wright,priya.wright55@example.com,Normal,Chat,Login fails after password reset 48,33.2,0
+T-20071,30.06.2025,Elena Tanaka,elena.tanaka1@example.com,Normal,Email,Cannot export report to PDF,18.9,0
+T-20072,11.03.2025,Priya Costa,priya.costa67@example.com,High,Phone,Invoice amount does not match the order 204,45.5,0
+T-20073,09.04.2025,Anna Wright,anna.wright25@example.com,Urgent,Chat,Feature request: bulk edit 387,23.4,2
+T-20074,03.07.2025,Marcus Wright,marcus.wright18@example.com,Low,Email,Need help configuring SSO 141,34.1,0
+T-20075,13.08.2025,Diego Silva,diego.silva18@example.com,Urgent,Email,Dashboard loads very slowly,88.3,0
+T-20076,31.05.2025,Yuki Tanaka,yuki.tanaka1@example.com,High,Phone,Dashboard loads very slowly 588,49.9,1
+T-20077,13.08.2025,Priya Silva,priya.silva10@example.com,Low,Chat,Feature request: bulk edit 552,9.1,0
+T-20078,16.05.2025,Yuki Haddad,yuki.haddad78@example.com,High,Phone,Need help configuring SSO 787,46.7,2
+T-20079,06.06.2025,Yuki Haddad,yuki.haddad25@example.com,Normal,Phone,Dashboard loads very slowly,16.5,1
+T-20080,28.08.2025,Marcus Tanaka,marcus.tanaka57@example.com,Urgent,Email,Duplicate records after sync,24,0
+T-20081,14.04.2025,Yuki Haddad,yuki.haddad42@example.com,Urgent,Chat,Need help configuring SSO 832,33.5,1
+T-20082,02.04.2025,Omar Wright,omar.wright5@example.com,Normal,Phone,Dashboard loads very slowly 1,30.4,1
+T-20083,13.05.2025,Elena Haddad,elena.haddad93@example.com,High,Email,Cannot export report to PDF 695,81.5,1
+T-20084,28.05.2025,Diego Tanaka,diego.tanaka54@example.com,High,Email,Login fails after password reset 759,84.8,0
+T-20085,20.06.2025,Marcus Silva,marcus.silva25@example.com,Normal,Phone,Data import stops at 40 percent,79.9,0
+T-20086,07.05.2025,Anna Tanaka,anna.tanaka37@example.com,Urgent,Chat,Need help configuring SSO 921,87.8,1
+T-20087,02.08.2025,Elena Silva,elena.silva84@example.com,Urgent,Chat,Cannot export report to PDF 68,44.5,1
+T-20088,01.08.2025,Priya Novak,priya.novak61@example.com,Low,Phone,Need help configuring SSO 382,95.7,0
+T-20089,26.03.2025,Elena Berg,elena.berg21@example.com,Urgent,Phone,Data import stops at 40 percent 556,58.3,1
+T-20090,03.06.2025,Diego Sharma,diego.sharma39@example.com,High,Email,Data import stops at 40 percent 72,57.6,0
+T-20091,22.04.2025,Yuki Haddad,yuki.haddad54@example.com,Low,Chat,Data import stops at 40 percent,42.5,2
+T-20092,03.06.2025,Omar Tanaka,omar.tanaka54@example.com,High,Email,Feature request: bulk edit,10.9,2
+T-20093,10.08.2025,Yuki Silva,yuki.silva19@example.com,Low,Phone,Dashboard loads very slowly 785,79.2,2
+T-20094,30.07.2025,Elena Silva,elena.silva11@example.com,Normal,Email,Duplicate records after sync 448,10.9,0
+T-20095,10.09.2025,Omar Berg,omar.berg27@example.com,High,Chat,Dashboard loads very slowly 295,76.8,0
+T-20096,15.08.2025,Elena Silva,elena.silva43@example.com,Normal,Phone,Duplicate records after sync,84.7,0
+T-20097,04.03.2025,Diego Silva,diego.silva42@example.com,High,Email,Feature request: bulk edit 354,60.2,1
+T-20098,22.04.2025,Marcus Silva,marcus.silva3@example.com,High,Phone,Feature request: bulk edit 127,4.7,0
+T-20099,16.09.2025,Omar Berg,omar.berg11@example.com,Low,Phone,Dashboard loads very slowly 840,23.1,0
+T-20100,25.05.2025,Anna Wright,anna.wright30@example.com,High,Email,Invoice amount does not match the order,40,0
+T-20101,28.07.2025,Omar Novak,omar.novak92@example.com,High,Chat,Feature request: bulk edit,26.8,1
+T-20102,30.03.2025,Yuki Sharma,yuki.sharma34@example.com,Urgent,Phone,Login fails after password reset 900,43.8,2
+T-20103,29.05.2025,Priya Tanaka,priya.tanaka90@example.com,Normal,Email,Feature request: bulk edit 338,77.7,0
+T-20104,23.06.2025,Yuki Sharma,yuki.sharma90@example.com,High,Phone,Login fails after password reset 393,72.7,1
+T-20105,04.08.2025,Yuki Haddad,yuki.haddad40@example.com,Urgent,Email,Duplicate records after sync 193,18.6,0
+T-20106,19.03.2025,Omar Berg,omar.berg3@example.com,Low,Phone,Need help configuring SSO 685,15.2,2
+T-20107,23.06.2025,Marcus Silva,marcus.silva49@example.com,Urgent,Email,Need help configuring SSO,95,0
+T-20108,21.03.2025,Tom Novak,tom.novak65@example.com,Low,Phone,Duplicate records after sync 378,31.2,0
+T-20109,08.04.2025,Elena Haddad,elena.haddad59@example.com,High,Phone,Login fails after password reset 925,40.4,1
+T-20110,01.05.2025,Omar Silva,omar.silva94@example.com,High,Phone,Need help configuring SSO 959,9.5,0
+T-20111,22.07.2025,Anna Berg,anna.berg17@example.com,Low,Chat,Duplicate records after sync 245,48.6,0
+T-20112,06.03.2025,Yuki Silva,yuki.silva23@example.com,Low,Chat,Dashboard loads very slowly 850,34.4,0
+T-20113,03.04.2025,Omar Silva,omar.silva8@example.com,Normal,Email,Feature request: bulk edit 764,12.5,2
+T-20114,26.06.2025,Tom Silva,tom.silva91@example.com,Low,Chat,Dashboard loads very slowly,87,2
+T-20115,01.09.2025,Omar Wright,omar.wright9@example.com,Low,Email,Feature request: bulk edit,10.9,0
+T-20116,28.08.2025,Diego Wright,diego.wright29@example.com,Low,Phone,Invoice amount does not match the order,67.1,1
+T-20117,03.09.2025,Marcus Wright,marcus.wright60@example.com,Urgent,Chat,Data import stops at 40 percent,8.1,0
+T-20118,11.06.2025,Omar Wright,omar.wright51@example.com,Normal,Email,Need help configuring SSO 311,48.2,2
+T-20119,22.07.2025,Marcus Silva,marcus.silva32@example.com,High,Email,Cannot export report to PDF,31.6,0
+T-20120,11.06.2025,Omar Novak,omar.novak8@example.com,Normal,Email,Need help configuring SSO,22.2,0
+T-20121,15.05.2025,Anna Novak,anna.novak91@example.com,Low,Email,Duplicate records after sync,76.6,0
+T-20122,10.06.2025,Tom Novak,tom.novak41@example.com,Low,Phone,Need help configuring SSO 291,49.4,0
+T-20123,14.03.2025,Anna Novak,anna.novak32@example.com,High,Email,Cannot export report to PDF,66.3,2
+T-20124,28.05.2025,Priya Sharma,priya.sharma4@example.com,Urgent,Email,Data import stops at 40 percent,67.3,0
+T-20125,11.08.2025,Anna Berg,anna.berg72@example.com,Low,Chat,Login fails after password reset,18.2,0
+T-20126,01.04.2025,Anna Tanaka,anna.tanaka72@example.com,Normal,Chat,Cannot export report to PDF 500,45,0
+T-20127,01.06.2025,Omar Haddad,omar.haddad81@example.com,Urgent,Chat,Cannot export report to PDF,63.5,0
+T-20128,18.06.2025,Yuki Wright,yuki.wright5@example.com,Urgent,Phone,Dashboard loads very slowly 512,44.4,0
+T-20129,19.07.2025,Anna Wright,anna.wright89@example.com,High,Chat,Data import stops at 40 percent,65.1,2
+T-20130,14.04.2025,Yuki Haddad,yuki.haddad65@example.com,Low,Phone,Duplicate records after sync 662,17.8,0
+T-20131,10.03.2025,Omar Sharma,omar.sharma59@example.com,Urgent,Phone,Invoice amount does not match the order,93,1
+T-20132,22.06.2025,Diego Sharma,diego.sharma33@example.com,High,Email,Dashboard loads very slowly 194,75.2,2
+T-20133,07.03.2025,Priya Haddad,priya.haddad79@example.com,Low,Email,Login fails after password reset,83.1,0
+T-20134,24.07.2025,Anna Berg,anna.berg85@example.com,Normal,Email,Data import stops at 40 percent 165,6.4,1
+T-20135,23.08.2025,Omar Haddad,omar.haddad28@example.com,Low,Phone,Need help configuring SSO 409,48.3,1
+T-20136,27.03.2025,Omar Tanaka,omar.tanaka71@example.com,Urgent,Email,Dashboard loads very slowly,46.9,0
+T-20137,24.05.2025,Diego Wright,diego.wright32@example.com,Normal,Phone,Cannot export report to PDF,74.3,0
+T-20138,21.05.2025,Diego Novak,diego.novak56@example.com,Normal,Chat,Login fails after password reset,90.8,2
+T-20139,06.06.2025,Anna Novak,anna.novak52@example.com,Normal,Email,Data import stops at 40 percent,21.5,0
+T-20140,03.05.2025,Marcus Tanaka,marcus.tanaka91@example.com,Normal,Phone,Invoice amount does not match the order 466,6.5,0
+T-20141,28.08.2025,Omar Costa,omar.costa58@example.com,Normal,Phone,Dashboard loads very slowly 223,25.1,0
+T-20142,04.05.2025,Yuki Wright,yuki.wright98@example.com,Low,Chat,Cannot export report to PDF,57.9,0
+T-20143,13.08.2025,Omar Silva,omar.silva88@example.com,Urgent,Phone,Need help configuring SSO,7.8,0
+T-20144,14.03.2025,Omar Wright,omar.wright81@example.com,Low,Phone,Feature request: bulk edit,47.4,2
+T-20145,07.03.2025,Marcus Haddad,marcus.haddad28@example.com,Normal,Phone,Dashboard loads very slowly 447,42.4,2
+T-20146,17.05.2025,Omar Costa,omar.costa45@example.com,Normal,Chat,Data import stops at 40 percent,2.6,1
+T-20147,18.08.2025,Omar Berg,omar.berg38@example.com,Low,Email,Need help configuring SSO,10.9,1
+T-20148,22.03.2025,Diego Costa,diego.costa59@example.com,Urgent,Phone,Cannot export report to PDF 199,71.4,0
+T-20149,15.09.2025,Yuki Novak,yuki.novak3@example.com,Low,Chat,Login fails after password reset 257,80,1
+T-20150,05.05.2025,Elena Silva,elena.silva25@example.com,High,Email,Dashboard loads very slowly,19.1,2
+T-20151,22.07.2025,Elena Wright,elena.wright30@example.com,Urgent,Phone,Dashboard loads very slowly,22,0
+T-20152,28.07.2025,Omar Costa,omar.costa97@example.com,Normal,Phone,Cannot export report to PDF 713,5.8,2
+T-20153,15.03.2025,Priya Costa,priya.costa96@example.com,Low,Chat,Feature request: bulk edit,38.3,0
+T-20154,31.08.2025,Omar Silva,omar.silva95@example.com,Urgent,Email,Dashboard loads very slowly,68.4,0
+T-20155,11.07.2025,Anna Wright,anna.wright58@example.com,Low,Phone,Cannot export report to PDF 364,11,1
+T-20156,11.09.2025,Anna Haddad,anna.haddad54@example.com,Low,Email,Cannot export report to PDF 169,58.5,0
+T-20157,25.06.2025,Anna Novak,anna.novak42@example.com,Low,Phone,Need help configuring SSO,33.8,0
+T-20158,22.03.2025,Tom Wright,tom.wright34@example.com,Urgent,Chat,Dashboard loads very slowly 56,31.2,2
+T-20159,18.06.2025,Anna Wright,anna.wright14@example.com,Normal,Phone,Cannot export report to PDF 964,8.7,2
+T-20160,21.07.2025,Diego Sharma,diego.sharma25@example.com,High,Chat,Need help configuring SSO 712,2.3,2
+T-20161,06.05.2025,Tom Costa,tom.costa56@example.com,Urgent,Email,Duplicate records after sync 334,79.2,2
+T-20162,09.05.2025,Priya Costa,priya.costa56@example.com,Urgent,Phone,Invoice amount does not match the order 935,25,0
+T-20163,25.04.2025,Anna Sharma,anna.sharma11@example.com,Normal,Phone,Dashboard loads very slowly,12.1,1
+T-20164,17.07.2025,Elena Tanaka,elena.tanaka68@example.com,Normal,Phone,Feature request: bulk edit,30.4,2
+T-20165,26.05.2025,Diego Tanaka,diego.tanaka70@example.com,Urgent,Chat,Dashboard loads very slowly 131,85.1,2
+T-20166,19.05.2025,Tom Tanaka,tom.tanaka86@example.com,Normal,Email,Data import stops at 40 percent 819,76.3,1
+T-20167,14.05.2025,Yuki Sharma,yuki.sharma66@example.com,Urgent,Chat,Login fails after password reset 769,38.1,1
+T-20168,05.05.2025,Tom Novak,tom.novak20@example.com,Normal,Phone,Duplicate records after sync,69.7,1
+T-20169,05.04.2025,Omar Silva,omar.silva10@example.com,Low,Phone,Need help configuring SSO 174,11.1,0
+T-20170,19.08.2025,Anna Tanaka,anna.tanaka18@example.com,Low,Chat,Data import stops at 40 percent,46.3,0
+T-20171,26.07.2025,Tom Berg,tom.berg19@example.com,Normal,Chat,Dashboard loads very slowly,94.3,0
+T-20172,18.05.2025,Marcus Sharma,marcus.sharma78@example.com,Normal,Phone,Dashboard loads very slowly 348,9.6,0
+T-20173,28.07.2025,Tom Wright,tom.wright7@example.com,Normal,Email,Feature request: bulk edit,64.4,0
+T-20174,30.06.2025,Anna Wright,anna.wright82@example.com,High,Chat,Login fails after password reset 387,21.8,0
+T-20175,31.08.2025,Diego Silva,diego.silva72@example.com,Normal,Phone,Feature request: bulk edit,32.9,2
+T-20176,13.03.2025,Anna Haddad,anna.haddad74@example.com,Normal,Email,Invoice amount does not match the order,39.3,0
+T-20177,03.09.2025,Tom Sharma,tom.sharma87@example.com,Normal,Chat,Login fails after password reset 472,27.8,1
+T-20178,19.07.2025,Marcus Berg,marcus.berg31@example.com,Urgent,Phone,Invoice amount does not match the order,26.9,2
+T-20179,11.03.2025,Tom Wright,tom.wright22@example.com,High,Phone,Duplicate records after sync 199,3.4,0
+T-20180,13.04.2025,Elena Tanaka,elena.tanaka45@example.com,Low,Chat,Dashboard loads very slowly 81,5,0
+T-20181,29.03.2025,Omar Silva,omar.silva37@example.com,Urgent,Phone,Login fails after password reset,64.9,0
+T-20182,09.09.2025,Anna Tanaka,anna.tanaka4@example.com,High,Email,Cannot export report to PDF 950,63.5,0
+T-20183,10.09.2025,Tom Haddad,tom.haddad45@example.com,Low,Chat,Feature request: bulk edit,87.4,0
+T-20184,13.08.2025,Tom Novak,tom.novak19@example.com,Low,Phone,Feature request: bulk edit 193,43.8,0
+T-20185,03.09.2025,Diego Tanaka,diego.tanaka47@example.com,High,Chat,Feature request: bulk edit 129,41.2,0
+T-20186,03.08.2025,Tom Costa,tom.costa93@example.com,Urgent,Chat,Feature request: bulk edit,59.7,1
+T-20187,06.06.2025,Omar Haddad,omar.haddad50@example.com,Normal,Chat,Data import stops at 40 percent,29.8,1
+T-20188,27.08.2025,Omar Sharma,omar.sharma53@example.com,Urgent,Email,Cannot export report to PDF 369,69.4,0
+T-20189,04.07.2025,Elena Haddad,elena.haddad89@example.com,Normal,Email,Cannot export report to PDF 168,15.5,0
+T-20190,28.04.2025,Marcus Haddad,marcus.haddad61@example.com,Urgent,Email,Invoice amount does not match the order 785,91.7,1
+T-20191,04.04.2025,Marcus Novak,marcus.novak28@example.com,High,Chat,Duplicate records after sync,72.7,0
+T-20192,14.05.2025,Omar Sharma,omar.sharma49@example.com,Low,Chat,Need help configuring SSO 630,56.9,0
+T-20193,28.08.2025,Omar Silva,omar.silva69@example.com,Urgent,Chat,Duplicate records after sync 133,59.1,0
+T-20194,07.08.2025,Diego Novak,diego.novak70@example.com,Low,Phone,Data import stops at 40 percent,93.8,0
+T-20195,02.07.2025,Omar Sharma,omar.sharma81@example.com,Normal,Phone,Dashboard loads very slowly,70.7,0
+T-20196,22.08.2025,Omar Sharma,omar.sharma91@example.com,Low,Chat,Invoice amount does not match the order,46.6,1
+T-20197,30.08.2025,Priya Haddad,priya.haddad97@example.com,Low,Chat,Login fails after password reset 886,66.1,0
+T-20198,21.07.2025,Diego Silva,diego.silva33@example.com,Urgent,Phone,Need help configuring SSO,24.5,0
+T-20199,26.05.2025,Anna Sharma,anna.sharma19@example.com,High,Chat,Login fails after password reset 430,91.6,0
+T-20200,11.09.2025,Diego Berg,diego.berg7@example.com,Normal,Chat,Invoice amount does not match the order 390,64.2,0
+T-20201,04.04.2025,Yuki Silva,yuki.silva27@example.com,Low,Chat,Invoice amount does not match the order,48.5,2
+T-20202,16.04.2025,Tom Novak,tom.novak13@example.com,Urgent,Email,Dashboard loads very slowly,69.2,0
+T-20203,03.09.2025,Tom Haddad,tom.haddad85@example.com,High,Phone,Invoice amount does not match the order 545,32.3,2
+T-20204,07.03.2025,Omar Silva,omar.silva70@example.com,Normal,Email,Dashboard loads very slowly,87.5,0
+T-20205,16.07.2025,Priya Silva,priya.silva91@example.com,High,Phone,Login fails after password reset,20.2,0
+T-20206,16.05.2025,Priya Silva,priya.silva2@example.com,Low,Chat,Data import stops at 40 percent,84.4,2
+T-20207,26.03.2025,Omar Berg,omar.berg15@example.com,Low,Chat,Login fails after password reset 701,77.1,0
+T-20208,03.04.2025,Marcus Novak,marcus.novak4@example.com,Urgent,Phone,Duplicate records after sync,94.2,1
+T-20209,16.05.2025,Yuki Haddad,yuki.haddad82@example.com,High,Chat,Feature request: bulk edit,32.6,0
+T-20210,17.07.2025,Elena Berg,elena.berg73@example.com,Low,Chat,Dashboard loads very slowly,49.8,2
+T-20211,20.05.2025,Marcus Novak,marcus.novak74@example.com,Low,Email,Cannot export report to PDF 82,68.9,2
+T-20212,04.06.2025,Omar Haddad,omar.haddad29@example.com,High,Email,Invoice amount does not match the order 440,42.8,0
+T-20213,06.03.2025,Marcus Silva,marcus.silva90@example.com,Urgent,Email,Login fails after password reset,62.6,2
+T-20214,04.03.2025,Yuki Sharma,yuki.sharma63@example.com,Low,Chat,Cannot export report to PDF 117,6.5,0
+T-20215,09.03.2025,Tom Silva,tom.silva56@example.com,Urgent,Phone,Login fails after password reset,41.7,0
+T-20216,20.04.2025,Marcus Tanaka,marcus.tanaka92@example.com,High,Email,Login fails after password reset 317,54.1,0
+T-20217,29.05.2025,Elena Costa,elena.costa17@example.com,Low,Email,Cannot export report to PDF 778,47.2,0
+T-20218,04.08.2025,Priya Silva,priya.silva27@example.com,High,Email,Dashboard loads very slowly,65.3,0
+T-20219,04.05.2025,Omar Novak,omar.novak84@example.com,Urgent,Chat,Cannot export report to PDF,22.9,0
+T-20220,19.07.2025,Diego Costa,diego.costa99@example.com,Urgent,Email,Cannot export report to PDF 534,79,0
+T-20221,29.07.2025,Anna Berg,anna.berg81@example.com,High,Phone,Duplicate records after sync 361,51.5,2
+T-20222,22.06.2025,Yuki Berg,yuki.berg59@example.com,Low,Email,Duplicate records after sync 50,30.1,0
+T-20223,15.06.2025,Diego Berg,diego.berg40@example.com,Normal,Email,Login fails after password reset 498,56.4,1
+T-20224,21.04.2025,Omar Haddad,omar.haddad26@example.com,Urgent,Phone,Dashboard loads very slowly,7.4,0
+T-20225,17.04.2025,Tom Silva,tom.silva93@example.com,Urgent,Phone,Dashboard loads very slowly,47,2
+T-20226,29.06.2025,Elena Sharma,elena.sharma29@example.com,Urgent,Phone,Need help configuring SSO,95.3,1
+T-20227,03.06.2025,Anna Sharma,anna.sharma25@example.com,High,Phone,Login fails after password reset,0.4,0
+T-20228,22.07.2025,Elena Silva,elena.silva36@example.com,High,Email,Invoice amount does not match the order,52.4,0
+T-20229,05.08.2025,Priya Novak,priya.novak59@example.com,Normal,Email,Feature request: bulk edit 315,89.6,1
+T-20230,06.08.2025,Diego Haddad,diego.haddad66@example.com,High,Chat,Duplicate records after sync,71.1,0
+T-20231,24.07.2025,Priya Sharma,priya.sharma61@example.com,Low,Email,Duplicate records after sync,13.1,0
+T-20232,26.08.2025,Marcus Berg,marcus.berg64@example.com,High,Phone,Data import stops at 40 percent,58.5,2
+T-20233,15.05.2025,Anna Novak,anna.novak63@example.com,Normal,Phone,Cannot export report to PDF 653,74,2
+T-20234,09.06.2025,Priya Sharma,priya.sharma4@example.com,Low,Email,Feature request: bulk edit,78.9,2
+T-20235,09.06.2025,Diego Novak,diego.novak27@example.com,Normal,Phone,Duplicate records after sync,1.8,0
+T-20236,30.08.2025,Yuki Costa,yuki.costa24@example.com,Urgent,Email,Feature request: bulk edit 270,4.2,0
+T-20237,27.08.2025,Yuki Tanaka,yuki.tanaka91@example.com,High,Chat,Duplicate records after sync,42.2,2
+T-20238,13.07.2025,Priya Haddad,priya.haddad25@example.com,Low,Chat,Invoice amount does not match the order,66.5,0
+T-20239,05.06.2025,Priya Haddad,priya.haddad64@example.com,Normal,Phone,Data import stops at 40 percent 741,78,0
+T-20240,06.07.2025,Priya Tanaka,priya.tanaka11@example.com,High,Email,Cannot export report to PDF 559,93,0
+T-20241,14.08.2025,Elena Silva,elena.silva22@example.com,High,Phone,Feature request: bulk edit,26.3,2
+T-20242,04.05.2025,Yuki Costa,yuki.costa84@example.com,Normal,Phone,Login fails after password reset,77,0
+T-20243,11.04.2025,Omar Silva,omar.silva48@example.com,High,Email,Data import stops at 40 percent,70.8,0
+T-20244,25.03.2025,Yuki Silva,yuki.silva41@example.com,Urgent,Phone,Data import stops at 40 percent,45.7,0
+T-20245,31.05.2025,Anna Haddad,anna.haddad67@example.com,Low,Phone,Feature request: bulk edit,9.6,0
+T-20246,21.04.2025,Marcus Silva,marcus.silva58@example.com,Low,Email,Duplicate records after sync 631,38.5,0
+T-20247,09.05.2025,Marcus Novak,marcus.novak92@example.com,Normal,Chat,Invoice amount does not match the order,79,0
+T-20248,22.04.2025,Omar Tanaka,omar.tanaka52@example.com,Urgent,Phone,Need help configuring SSO,39.4,2
+T-20249,27.06.2025,Diego Silva,diego.silva43@example.com,High,Email,Data import stops at 40 percent 748,54.1,0
+T-20250,04.09.2025,Tom Sharma,tom.sharma8@example.com,Low,Email,Data import stops at 40 percent 797,58.9,0
+T-20251,12.06.2025,Elena Novak,elena.novak2@example.com,Low,Email,Dashboard loads very slowly 305,87.9,0
+T-20252,05.06.2025,Marcus Costa,marcus.costa30@example.com,Urgent,Email,Login fails after password reset 212,54.3,0
+T-20253,28.04.2025,Marcus Wright,marcus.wright15@example.com,Normal,Phone,Duplicate records after sync,18.1,2
+T-20254,07.03.2025,Elena Silva,elena.silva16@example.com,Urgent,Email,Cannot export report to PDF 480,11.6,1
+T-20255,25.04.2025,Anna Novak,anna.novak93@example.com,Normal,Phone,Data import stops at 40 percent,88.1,0
+T-20256,01.03.2025,Yuki Sharma,yuki.sharma62@example.com,Low,Phone,Feature request: bulk edit,41.1,0
+T-20257,17.06.2025,Priya Silva,priya.silva65@example.com,Normal,Phone,Dashboard loads very slowly 452,66.5,0
+T-20258,21.04.2025,Marcus Haddad,marcus.haddad68@example.com,Normal,Email,Feature request: bulk edit 664,26.8,1
+T-20259,28.03.2025,Elena Silva,elena.silva40@example.com,Low,Chat,Dashboard loads very slowly,37.7,2
+T-20260,30.03.2025,Anna Wright,anna.wright48@example.com,Normal,Phone,Dashboard loads very slowly 159,1,2
+T-20261,14.05.2025,Elena Wright,elena.wright43@example.com,High,Chat,Invoice amount does not match the order,85.9,2
+T-20262,05.08.2025,Diego Tanaka,diego.tanaka97@example.com,High,Chat,Need help configuring SSO 529,2,1
+T-20263,22.04.2025,Anna Silva,anna.silva27@example.com,Low,Phone,Feature request: bulk edit,57.4,2
+T-20264,21.07.2025,Marcus Novak,marcus.novak12@example.com,Urgent,Phone,Data import stops at 40 percent 880,16.6,0
+T-20265,31.03.2025,Priya Berg,priya.berg13@example.com,Low,Phone,Login fails after password reset,62.4,1
+T-20266,19.04.2025,Omar Novak,omar.novak11@example.com,High,Chat,Duplicate records after sync,64,1
+T-20267,15.04.2025,Yuki Haddad,yuki.haddad88@example.com,Urgent,Chat,Invoice amount does not match the order 467,77.3,2
+T-20268,30.04.2025,Omar Sharma,omar.sharma98@example.com,Normal,Phone,Cannot export report to PDF,17.4,0
+T-20269,20.08.2025,Diego Sharma,diego.sharma99@example.com,Urgent,Phone,Dashboard loads very slowly,78.1,0
+T-20270,19.04.2025,Yuki Novak,yuki.novak97@example.com,High,Email,Data import stops at 40 percent 488,63.8,0
+T-20271,31.08.2025,Omar Berg,omar.berg69@example.com,Urgent,Chat,Dashboard loads very slowly 330,65.6,0
+T-20272,10.04.2025,Tom Novak,tom.novak31@example.com,Low,Email,Feature request: bulk edit,0.5,0
+T-20273,07.05.2025,Yuki Tanaka,yuki.tanaka4@example.com,Urgent,Email,Dashboard loads very slowly,56.9,0
+T-20274,26.03.2025,Diego Novak,diego.novak98@example.com,Urgent,Phone,Feature request: bulk edit,53.6,0
+T-20275,08.09.2025,Anna Wright,anna.wright36@example.com,Normal,Chat,Data import stops at 40 percent 235,44.9,1
+T-20276,13.09.2025,Priya Berg,priya.berg28@example.com,Low,Chat,Need help configuring SSO 87,0.4,0
+T-20277,23.06.2025,Diego Haddad,diego.haddad95@example.com,High,Email,Cannot export report to PDF 240,90.2,0
+T-20278,18.04.2025,Yuki Tanaka,yuki.tanaka68@example.com,Urgent,Chat,Dashboard loads very slowly,57.4,0
+T-20279,25.03.2025,Elena Tanaka,elena.tanaka23@example.com,Low,Chat,Cannot export report to PDF,11.1,0
+T-20280,17.03.2025,Anna Haddad,anna.haddad35@example.com,High,Email,Login fails after password reset,45.5,0
+T-20281,24.08.2025,Yuki Sharma,yuki.sharma97@example.com,High,Email,Data import stops at 40 percent,28.3,0
+T-20282,25.04.2025,Yuki Berg,yuki.berg83@example.com,Normal,Chat,Cannot export report to PDF 449,94.9,1
+T-20283,13.06.2025,Marcus Sharma,marcus.sharma16@example.com,High,Phone,Duplicate records after sync 865,33,0
+T-20284,23.07.2025,Omar Costa,omar.costa65@example.com,High,Phone,Login fails after password reset 573,67.8,2
+T-20285,02.06.2025,Yuki Costa,yuki.costa46@example.com,Urgent,Phone,Need help configuring SSO 697,62,1
+T-20286,17.09.2025,Anna Haddad,anna.haddad65@example.com,Normal,Email,Need help configuring SSO,35.6,1
+T-20287,11.06.2025,Yuki Berg,yuki.berg92@example.com,Urgent,Chat,Need help configuring SSO 434,88.2,1
+T-20288,17.04.2025,Priya Haddad,priya.haddad16@example.com,High,Email,Dashboard loads very slowly,95.1,2
+T-20289,12.04.2025,Yuki Haddad,yuki.haddad75@example.com,Normal,Phone,Invoice amount does not match the order 365,30.1,2
+T-20290,14.05.2025,Diego Sharma,diego.sharma40@example.com,Urgent,Chat,Invoice amount does not match the order,9.9,1
+T-20291,10.08.2025,Priya Haddad,priya.haddad71@example.com,High,Chat,Invoice amount does not match the order 616,1.1,0
+T-20292,25.06.2025,Tom Costa,tom.costa91@example.com,High,Chat,Login fails after password reset 782,95.1,1
+T-20293,17.04.2025,Marcus Silva,marcus.silva59@example.com,High,Email,Cannot export report to PDF 793,2.1,2
+T-20294,23.03.2025,Tom Silva,tom.silva92@example.com,Urgent,Email,Feature request: bulk edit 101,40.4,0
+T-20295,07.08.2025,Marcus Silva,marcus.silva38@example.com,High,Phone,Cannot export report to PDF 889,56.3,2
+T-20296,05.05.2025,Marcus Silva,marcus.silva64@example.com,Urgent,Phone,Login fails after password reset 689,61.3,0
+T-20297,28.06.2025,Tom Costa,tom.costa4@example.com,High,Chat,Feature request: bulk edit 18,57.3,0
+T-20298,01.09.2025,Anna Berg,anna.berg97@example.com,Urgent,Email,Dashboard loads very slowly 594,12.8,0
+T-20299,17.04.2025,Anna Berg,anna.berg90@example.com,High,Chat,Dashboard loads very slowly,13.6,0
+T-20300,12.04.2025,Anna Costa,anna.costa2@example.com,Normal,Chat,Login fails after password reset,14.9,1
+T-20301,11.09.2025,Anna Silva,anna.silva98@example.com,Low,Phone,Data import stops at 40 percent 572,57.1,0
+T-20302,13.05.2025,Marcus Wright,marcus.wright17@example.com,Low,Email,Feature request: bulk edit 317,58,1
+T-20303,16.03.2025,Diego Novak,diego.novak74@example.com,Urgent,Phone,Need help configuring SSO 604,91.5,0
+T-20304,01.06.2025,Elena Costa,elena.costa81@example.com,High,Phone,Data import stops at 40 percent 104,28.2,0
+T-20305,01.07.2025,Priya Silva,priya.silva80@example.com,Normal,Phone,Feature request: bulk edit,33.8,0
+T-20306,03.03.2025,Diego Haddad,diego.haddad96@example.com,Normal,Phone,Cannot export report to PDF,34.9,1
+T-20307,02.07.2025,Yuki Silva,yuki.silva94@example.com,Low,Chat,Cannot export report to PDF 779,9.7,1
+T-20308,17.09.2025,Marcus Novak,marcus.novak66@example.com,High,Phone,Invoice amount does not match the order 857,61.7,1
+T-20309,10.09.2025,Anna Tanaka,anna.tanaka47@example.com,Urgent,Chat,Dashboard loads very slowly,24.3,0
+T-20310,01.05.2025,Yuki Novak,yuki.novak7@example.com,High,Phone,Need help configuring SSO,24.6,0
+T-20311,12.08.2025,Anna Haddad,anna.haddad9@example.com,Low,Chat,Data import stops at 40 percent 68,20.9,2
+T-20312,23.04.2025,Anna Sharma,anna.sharma53@example.com,Low,Phone,Feature request: bulk edit,19.6,0
+T-20313,30.08.2025,Tom Silva,tom.silva20@example.com,Urgent,Email,Login fails after password reset 997,83.2,2
+T-20314,25.04.2025,Priya Sharma,priya.sharma36@example.com,Urgent,Chat,Feature request: bulk edit,18.6,1
+T-20315,06.06.2025,Omar Novak,omar.novak25@example.com,Low,Phone,Need help configuring SSO 706,55.5,0
+T-20316,22.05.2025,Marcus Tanaka,marcus.tanaka54@example.com,Normal,Phone,Dashboard loads very slowly,77.9,1
+T-20317,24.03.2025,Anna Sharma,anna.sharma18@example.com,High,Chat,Login fails after password reset,52.2,2
+T-20318,23.05.2025,Priya Costa,priya.costa22@example.com,Normal,Chat,Login fails after password reset,14.7,0
+T-20319,16.08.2025,Yuki Haddad,yuki.haddad92@example.com,Low,Email,Duplicate records after sync,65.9,0
+T-20320,18.07.2025,Omar Silva,omar.silva93@example.com,High,Phone,Feature request: bulk edit 866,17.7,1
+T-20321,13.09.2025,Elena Silva,elena.silva86@example.com,Urgent,Chat,Need help configuring SSO,37.1,1
+T-20322,15.04.2025,Anna Novak,anna.novak15@example.com,Normal,Email,Dashboard loads very slowly,10.4,2
+T-20323,16.03.2025,Omar Haddad,omar.haddad75@example.com,Normal,Chat,Cannot export report to PDF 152,79.4,0
+T-20324,02.03.2025,Diego Wright,diego.wright5@example.com,High,Email,Duplicate records after sync,22.3,1
+T-20325,22.07.2025,Tom Novak,tom.novak98@example.com,Urgent,Email,Cannot export report to PDF,21.5,2
+T-20326,08.09.2025,Anna Tanaka,anna.tanaka99@example.com,Urgent,Phone,Duplicate records after sync 4,93.8,2
+T-20327,20.08.2025,Yuki Berg,yuki.berg43@example.com,Normal,Chat,Duplicate records after sync,93.3,0
+T-20328,31.03.2025,Tom Haddad,tom.haddad99@example.com,Normal,Email,Duplicate records after sync 834,35.5,2
+T-20329,06.09.2025,Elena Wright,elena.wright27@example.com,High,Phone,Duplicate records after sync 461,54.3,1
+T-20330,19.03.2025,Elena Tanaka,elena.tanaka98@example.com,Urgent,Chat,Need help configuring SSO,28.7,0
+T-20331,31.07.2025,Marcus Sharma,marcus.sharma75@example.com,Urgent,Phone,Cannot export report to PDF 83,22.7,2
+T-20332,17.07.2025,Marcus Novak,marcus.novak37@example.com,High,Phone,Invoice amount does not match the order 330,41.7,2
+T-20333,14.06.2025,Tom Novak,tom.novak57@example.com,Urgent,Email,Dashboard loads very slowly 388,72.1,0
+T-20334,01.05.2025,Yuki Novak,yuki.novak51@example.com,Low,Email,Login fails after password reset,74.3,0
+T-20335,03.06.2025,Anna Tanaka,anna.tanaka89@example.com,High,Email,Data import stops at 40 percent,38.3,1
+T-20336,17.07.2025,Elena Sharma,elena.sharma47@example.com,Urgent,Chat,Data import stops at 40 percent,88.3,0
+T-20337,20.06.2025,Diego Haddad,diego.haddad31@example.com,Urgent,Email,Cannot export report to PDF 944,11.4,1
+T-20338,25.08.2025,Marcus Silva,marcus.silva68@example.com,Urgent,Phone,Data import stops at 40 percent 762,7.6,0
+T-20339,08.08.2025,Omar Silva,omar.silva15@example.com,Normal,Email,Invoice amount does not match the order,0.5,0
+T-20340,21.08.2025,Diego Tanaka,diego.tanaka89@example.com,Low,Chat,Invoice amount does not match the order,12.9,0
+T-20341,04.09.2025,Tom Novak,tom.novak55@example.com,High,Phone,Cannot export report to PDF 28,23.9,0
+T-20342,19.06.2025,Tom Sharma,tom.sharma95@example.com,Normal,Phone,Data import stops at 40 percent,67.5,2
+T-20343,27.06.2025,Marcus Novak,marcus.novak65@example.com,Urgent,Chat,Need help configuring SSO,2.8,0
+T-20344,20.03.2025,Priya Costa,priya.costa59@example.com,Normal,Phone,Need help configuring SSO 700,94.6,2
+T-20345,25.06.2025,Diego Berg,diego.berg62@example.com,Urgent,Chat,Feature request: bulk edit,20.6,0
+T-20346,11.09.2025,Marcus Novak,marcus.novak34@example.com,Low,Chat,Dashboard loads very slowly,2.1,2
+T-20347,26.04.2025,Anna Silva,anna.silva93@example.com,High,Phone,Login fails after password reset 265,73.5,0
+T-20348,17.09.2025,Anna Tanaka,anna.tanaka7@example.com,High,Chat,Cannot export report to PDF,54,0
+T-20349,06.04.2025,Omar Costa,omar.costa60@example.com,Urgent,Email,Cannot export report to PDF,16.3,0
+T-20350,06.07.2025,Elena Costa,elena.costa48@example.com,Normal,Email,Need help configuring SSO,18.4,1
+T-20351,07.09.2025,Yuki Novak,yuki.novak71@example.com,High,Phone,Need help configuring SSO,79.2,2
+T-20352,14.03.2025,Anna Costa,anna.costa18@example.com,Low,Chat,Invoice amount does not match the order 319,37,0
+T-20353,02.09.2025,Marcus Costa,marcus.costa14@example.com,Normal,Phone,Duplicate records after sync,2.6,1
+T-20354,27.06.2025,Priya Haddad,priya.haddad77@example.com,Urgent,Phone,Invoice amount does not match the order 283,95.3,0
+T-20355,14.05.2025,Marcus Wright,marcus.wright85@example.com,High,Phone,Duplicate records after sync 597,35.8,0
+T-20356,24.06.2025,Anna Haddad,anna.haddad65@example.com,Urgent,Phone,Feature request: bulk edit,37.6,1
+T-20357,18.04.2025,Omar Berg,omar.berg49@example.com,Normal,Chat,Data import stops at 40 percent 944,41.6,0
+T-20358,23.05.2025,Anna Costa,anna.costa60@example.com,High,Chat,Data import stops at 40 percent,79.1,0
+T-20359,10.08.2025,Anna Costa,anna.costa73@example.com,High,Phone,Data import stops at 40 percent,70.1,0
+T-20360,03.07.2025,Anna Silva,anna.silva10@example.com,Low,Phone,Data import stops at 40 percent 854,56.1,0
+T-20361,17.03.2025,Marcus Costa,marcus.costa31@example.com,Urgent,Chat,Dashboard loads very slowly 363,50.7,0
+T-20362,08.09.2025,Yuki Silva,yuki.silva26@example.com,Normal,Phone,Cannot export report to PDF,24.1,0
+T-20363,02.06.2025,Tom Berg,tom.berg34@example.com,Low,Email,Invoice amount does not match the order 136,61.9,0
+T-20364,11.08.2025,Yuki Wright,yuki.wright44@example.com,Urgent,Phone,Feature request: bulk edit,13.5,2
+T-20365,28.04.2025,Omar Haddad,omar.haddad9@example.com,Urgent,Chat,Cannot export report to PDF,23.1,2
+T-20366,08.08.2025,Yuki Silva,yuki.silva31@example.com,Normal,Email,Duplicate records after sync,77.2,0
+T-20367,16.04.2025,Tom Wright,tom.wright27@example.com,Normal,Phone,Login fails after password reset 52,15.8,0
+T-20368,20.05.2025,Tom Tanaka,tom.tanaka66@example.com,High,Chat,Data import stops at 40 percent,65,1
+T-20369,21.07.2025,Omar Tanaka,omar.tanaka2@example.com,Low,Phone,Feature request: bulk edit,12,0
+T-20370,20.08.2025,Tom Sharma,tom.sharma9@example.com,Normal,Email,Invoice amount does not match the order 953,62.5,2
+T-20371,27.08.2025,Marcus Costa,marcus.costa28@example.com,Normal,Chat,Login fails after password reset,80.4,0
+T-20372,02.03.2025,Yuki Haddad,yuki.haddad23@example.com,High,Email,Login fails after password reset,75.6,0
+T-20373,08.06.2025,Priya Silva,priya.silva99@example.com,Urgent,Phone,Feature request: bulk edit,83.8,1
+T-20374,13.03.2025,Anna Haddad,anna.haddad38@example.com,Low,Email,Duplicate records after sync,61.6,0
+T-20375,18.05.2025,Tom Berg,tom.berg40@example.com,Urgent,Chat,Login fails after password reset,76.3,2
+T-20376,07.09.2025,Priya Berg,priya.berg30@example.com,Urgent,Email,Login fails after password reset,66.7,2
+T-20377,19.06.2025,Priya Berg,priya.berg16@example.com,Urgent,Chat,Invoice amount does not match the order,38.6,1
+T-20378,09.07.2025,Anna Costa,anna.costa91@example.com,Low,Email,Login fails after password reset 834,85.7,2
+T-20379,06.04.2025,Anna Silva,anna.silva6@example.com,Urgent,Phone,Feature request: bulk edit 994,33.2,2
+T-20380,26.05.2025,Yuki Tanaka,yuki.tanaka37@example.com,Normal,Phone,Cannot export report to PDF,19,0
+T-20381,29.05.2025,Yuki Novak,yuki.novak3@example.com,Normal,Phone,Login fails after password reset,6.1,0
+T-20382,06.08.2025,Anna Wright,anna.wright30@example.com,High,Email,Feature request: bulk edit 242,50,0
+T-20383,28.08.2025,Anna Silva,anna.silva40@example.com,Low,Phone,Dashboard loads very slowly,28.3,1
+T-20384,11.09.2025,Yuki Haddad,yuki.haddad60@example.com,Normal,Phone,Feature request: bulk edit,48.9,0
+T-20385,01.03.2025,Elena Wright,elena.wright94@example.com,Urgent,Email,Invoice amount does not match the order,50,0
+T-20386,14.05.2025,Yuki Novak,yuki.novak34@example.com,Low,Email,Feature request: bulk edit,17,0
+T-20387,14.03.2025,Yuki Novak,yuki.novak56@example.com,Low,Phone,Need help configuring SSO 631,75.7,1
+T-20388,17.08.2025,Omar Wright,omar.wright75@example.com,Normal,Email,Invoice amount does not match the order,64.3,1
+T-20389,18.07.2025,Diego Sharma,diego.sharma46@example.com,Low,Email,Data import stops at 40 percent 471,65.7,1
+T-20390,23.07.2025,Yuki Haddad,yuki.haddad94@example.com,Urgent,Email,Duplicate records after sync 204,35.8,0
+T-20391,02.06.2025,Anna Berg,anna.berg9@example.com,Normal,Chat,Login fails after password reset 574,18.8,0
+T-20392,02.08.2025,Tom Wright,tom.wright79@example.com,Normal,Phone,Duplicate records after sync,2,0
+T-20393,28.08.2025,Omar Costa,omar.costa75@example.com,High,Chat,Dashboard loads very slowly 657,28.6,0
+T-20394,21.08.2025,Anna Haddad,anna.haddad61@example.com,Urgent,Phone,Cannot export report to PDF,23.1,0
+T-20395,03.08.2025,Diego Costa,diego.costa95@example.com,High,Email,Duplicate records after sync,7.7,0
+T-20396,31.05.2025,Tom Wright,tom.wright81@example.com,Normal,Phone,Feature request: bulk edit,93.4,0
+T-20397,16.04.2025,Yuki Sharma,yuki.sharma54@example.com,High,Phone,Invoice amount does not match the order 176,15,0
+T-20398,30.07.2025,Anna Berg,anna.berg82@example.com,Urgent,Phone,Data import stops at 40 percent 554,94.5,0
+T-20399,17.07.2025,Omar Novak,omar.novak42@example.com,High,Chat,Need help configuring SSO 81,3.2,1
+T-20400,21.04.2025,Anna Sharma,anna.sharma62@example.com,Urgent,Email,Duplicate records after sync,90.5,0
+T-20401,07.05.2025,Yuki Haddad,yuki.haddad78@example.com,Urgent,Phone,Duplicate records after sync 108,53.2,0
+T-20402,01.07.2025,Priya Tanaka,priya.tanaka98@example.com,Urgent,Email,Need help configuring SSO,4.3,0
+T-20403,26.05.2025,Elena Costa,elena.costa66@example.com,Urgent,Email,Need help configuring SSO,17.4,0
+T-20404,15.04.2025,Yuki Silva,yuki.silva37@example.com,Low,Email,Cannot export report to PDF 523,70.1,0
+T-20405,07.07.2025,Yuki Novak,yuki.novak81@example.com,Normal,Phone,Feature request: bulk edit,56.1,1
+T-20406,11.07.2025,Tom Haddad,tom.haddad18@example.com,High,Phone,Dashboard loads very slowly,74.5,0
+T-20407,05.05.2025,Diego Costa,diego.costa32@example.com,High,Chat,Data import stops at 40 percent 591,58.1,0
+T-20408,04.07.2025,Yuki Costa,yuki.costa48@example.com,Normal,Chat,Duplicate records after sync 351,53,0
+T-20409,31.03.2025,Priya Novak,priya.novak60@example.com,High,Chat,Duplicate records after sync,31.9,2
+T-20410,18.03.2025,Diego Wright,diego.wright36@example.com,Urgent,Email,Login fails after password reset 406,29.4,0
+T-20411,25.05.2025,Omar Berg,omar.berg40@example.com,Normal,Phone,Data import stops at 40 percent,94.4,0
+T-20412,09.05.2025,Yuki Wright,yuki.wright95@example.com,Normal,Email,Dashboard loads very slowly,17.3,0
+T-20413,20.06.2025,Tom Wright,tom.wright27@example.com,Urgent,Chat,Invoice amount does not match the order,60.3,0
+T-20414,10.07.2025,Marcus Haddad,marcus.haddad25@example.com,High,Phone,Login fails after password reset,53.3,1
+T-20415,11.04.2025,Omar Sharma,omar.sharma86@example.com,High,Email,Feature request: bulk edit,12.8,0
+T-20416,03.03.2025,Diego Silva,diego.silva94@example.com,High,Phone,Dashboard loads very slowly,45.9,0
+T-20417,01.03.2025,Tom Silva,tom.silva64@example.com,Normal,Email,Need help configuring SSO,82.8,1
+T-20418,22.06.2025,Anna Sharma,anna.sharma63@example.com,Low,Chat,Data import stops at 40 percent 136,76.9,0
+T-20419,27.07.2025,Yuki Sharma,yuki.sharma27@example.com,Low,Chat,Login fails after password reset 474,48.4,0
+T-20420,15.07.2025,Diego Tanaka,diego.tanaka94@example.com,High,Chat,Feature request: bulk edit 78,8.2,0
+T-20421,05.08.2025,Marcus Costa,marcus.costa6@example.com,Normal,Chat,Dashboard loads very slowly 984,7.8,0
+T-20422,23.04.2025,Anna Costa,anna.costa49@example.com,Normal,Email,Data import stops at 40 percent 481,3.7,2
+T-20423,16.08.2025,Priya Novak,priya.novak24@example.com,Low,Phone,Dashboard loads very slowly 946,11,0
+T-20424,29.04.2025,Priya Berg,priya.berg28@example.com,High,Email,Cannot export report to PDF,89.8,0
+T-20425,30.08.2025,Diego Novak,diego.novak24@example.com,Urgent,Phone,Duplicate records after sync,25.2,0
+T-20426,20.05.2025,Anna Costa,anna.costa58@example.com,Low,Phone,Invoice amount does not match the order 609,90.2,0
+T-20427,15.08.2025,Diego Haddad,diego.haddad66@example.com,Low,Chat,Login fails after password reset,83.2,1
+T-20428,04.06.2025,Marcus Costa,marcus.costa95@example.com,Low,Email,Need help configuring SSO,80.2,1
+T-20429,31.08.2025,Anna Tanaka,anna.tanaka71@example.com,Normal,Phone,Dashboard loads very slowly 742,19.1,1
+T-20430,23.04.2025,Omar Sharma,omar.sharma29@example.com,Low,Phone,Invoice amount does not match the order,60.7,2
+T-20431,06.08.2025,Anna Silva,anna.silva87@example.com,Urgent,Phone,Feature request: bulk edit 617,31.2,0
+T-20432,19.04.2025,Yuki Sharma,yuki.sharma67@example.com,Urgent,Phone,Feature request: bulk edit,36.1,1
+T-20433,01.03.2025,Marcus Novak,marcus.novak58@example.com,Low,Email,Dashboard loads very slowly 105,7.1,0
+T-20434,05.09.2025,Yuki Novak,yuki.novak11@example.com,High,Phone,Feature request: bulk edit 405,6.6,0
+T-20435,16.04.2025,Marcus Silva,marcus.silva55@example.com,High,Phone,Dashboard loads very slowly 521,91.4,0
+T-20436,10.08.2025,Priya Costa,priya.costa43@example.com,Normal,Phone,Need help configuring SSO,13,2
+T-20437,28.07.2025,Omar Silva,omar.silva91@example.com,Low,Email,Feature request: bulk edit,81.1,0
+T-20438,12.03.2025,Yuki Novak,yuki.novak54@example.com,Low,Chat,Cannot export report to PDF,94.9,1
+T-20439,07.04.2025,Tom Berg,tom.berg90@example.com,Low,Email,Login fails after password reset,55.6,0
+T-20440,03.08.2025,Anna Wright,anna.wright50@example.com,Low,Email,Cannot export report to PDF,41.6,0
+T-20441,28.04.2025,Diego Silva,diego.silva70@example.com,High,Email,Data import stops at 40 percent 426,71.9,1
+T-20442,08.09.2025,Priya Tanaka,priya.tanaka89@example.com,Normal,Email,Need help configuring SSO,89.8,0
+T-20443,04.06.2025,Yuki Berg,yuki.berg59@example.com,High,Phone,Invoice amount does not match the order 387,13.8,0
+T-20444,31.03.2025,Tom Haddad,tom.haddad4@example.com,Low,Email,Cannot export report to PDF 700,44.8,0
+T-20445,26.05.2025,Elena Tanaka,elena.tanaka4@example.com,Normal,Phone,Login fails after password reset 974,83,2
+T-20446,24.05.2025,Anna Silva,anna.silva8@example.com,Normal,Email,Need help configuring SSO 146,69.8,0
+T-20447,20.08.2025,Priya Novak,priya.novak63@example.com,High,Phone,Login fails after password reset,9.9,2
+T-20448,07.09.2025,Yuki Costa,yuki.costa16@example.com,Low,Chat,Dashboard loads very slowly 295,22.3,0
+T-20449,14.05.2025,Yuki Sharma,yuki.sharma96@example.com,High,Phone,Login fails after password reset,79.1,0
+T-20450,04.04.2025,Marcus Costa,marcus.costa92@example.com,Low,Email,Data import stops at 40 percent 162,7.7,0
+T-20451,16.05.2025,Priya Berg,priya.berg25@example.com,Urgent,Phone,Invoice amount does not match the order 974,10.9,1
+T-20452,06.05.2025,Elena Tanaka,elena.tanaka34@example.com,Urgent,Email,Login fails after password reset 737,23,2
+T-20453,08.03.2025,Yuki Silva,yuki.silva30@example.com,Normal,Phone,Data import stops at 40 percent 110,3.6,2
+T-20454,04.07.2025,Tom Berg,tom.berg71@example.com,Urgent,Chat,Cannot export report to PDF,8.9,0
+T-20455,21.07.2025,Diego Novak,diego.novak59@example.com,Normal,Email,Feature request: bulk edit,36.8,1
+T-20456,18.05.2025,Omar Berg,omar.berg23@example.com,Normal,Phone,Need help configuring SSO 269,66.9,0
+T-20457,14.07.2025,Tom Berg,tom.berg74@example.com,Low,Chat,Login fails after password reset 945,25.8,1
+T-20458,20.07.2025,Elena Berg,elena.berg65@example.com,Low,Phone,Cannot export report to PDF 711,79.1,1
+T-20459,28.04.2025,Tom Novak,tom.novak80@example.com,Low,Phone,Invoice amount does not match the order,90.1,2
+T-20460,26.08.2025,Omar Sharma,omar.sharma25@example.com,High,Phone,Login fails after password reset 454,2.8,0
+T-20461,11.04.2025,Priya Sharma,priya.sharma42@example.com,Low,Email,Cannot export report to PDF 66,90.5,1
+T-20462,06.08.2025,Priya Wright,priya.wright64@example.com,Low,Phone,Invoice amount does not match the order 959,14.6,0
+T-20463,08.03.2025,Tom Tanaka,tom.tanaka86@example.com,Normal,Chat,Feature request: bulk edit 34,49,1
+T-20464,12.09.2025,Marcus Costa,marcus.costa8@example.com,High,Phone,Dashboard loads very slowly 540,87.5,2
+T-20465,13.05.2025,Anna Silva,anna.silva22@example.com,Urgent,Email,Need help configuring SSO 494,90.4,0
+T-20466,08.07.2025,Omar Silva,omar.silva41@example.com,Normal,Email,Cannot export report to PDF,33.5,2
+T-20467,20.06.2025,Marcus Tanaka,marcus.tanaka67@example.com,High,Phone,Duplicate records after sync 697,36,2
+T-20468,27.06.2025,Anna Berg,anna.berg67@example.com,Low,Phone,Data import stops at 40 percent 82,17.8,2
+T-20469,02.06.2025,Tom Haddad,tom.haddad35@example.com,Urgent,Chat,Feature request: bulk edit 58,48.7,0
+T-20470,02.06.2025,Priya Tanaka,priya.tanaka88@example.com,Normal,Phone,Cannot export report to PDF,81.2,0
+T-20471,13.06.2025,Marcus Tanaka,marcus.tanaka81@example.com,High,Email,Cannot export report to PDF,86.4,0
+T-20472,08.09.2025,Yuki Haddad,yuki.haddad87@example.com,Urgent,Phone,Cannot export report to PDF,38.7,0
+T-20473,05.03.2025,Tom Novak,tom.novak58@example.com,Urgent,Chat,Dashboard loads very slowly 690,58.7,0
+T-20474,08.07.2025,Elena Berg,elena.berg48@example.com,Low,Chat,Cannot export report to PDF 510,94.2,0
+T-20475,09.07.2025,Diego Berg,diego.berg86@example.com,Low,Phone,Dashboard loads very slowly,44.2,0
+T-20476,20.04.2025,Priya Costa,priya.costa47@example.com,Normal,Chat,Feature request: bulk edit,20.1,0
+T-20477,10.06.2025,Diego Silva,diego.silva45@example.com,Low,Phone,Duplicate records after sync,91.7,1
+T-20478,11.06.2025,Omar Wright,omar.wright53@example.com,High,Chat,Duplicate records after sync,89.8,2
+T-20479,25.08.2025,Diego Silva,diego.silva49@example.com,Normal,Chat,Data import stops at 40 percent,41.9,0
+T-20480,14.08.2025,Elena Haddad,elena.haddad47@example.com,Urgent,Phone,Duplicate records after sync 28,39.5,0
+T-20481,08.03.2025,Omar Haddad,omar.haddad17@example.com,Low,Phone,Duplicate records after sync,60.9,1
+T-20482,12.05.2025,Elena Tanaka,elena.tanaka59@example.com,High,Chat,Dashboard loads very slowly,8.3,2
+T-20483,30.04.2025,Yuki Berg,yuki.berg79@example.com,Low,Email,Need help configuring SSO 675,1.1,1
+T-20484,15.09.2025,Omar Wright,omar.wright86@example.com,Urgent,Email,Data import stops at 40 percent 745,26.2,0
+T-20485,03.05.2025,Marcus Tanaka,marcus.tanaka67@example.com,High,Phone,Dashboard loads very slowly 526,5.7,2
+T-20486,24.07.2025,Tom Tanaka,tom.tanaka22@example.com,Urgent,Email,Feature request: bulk edit 608,39.8,2
+T-20487,17.07.2025,Tom Haddad,tom.haddad2@example.com,Low,Chat,Login fails after password reset 602,41.2,1
+T-20488,30.04.2025,Yuki Berg,yuki.berg68@example.com,High,Phone,Login fails after password reset 705,58,2
+T-20489,14.08.2025,Anna Sharma,anna.sharma71@example.com,High,Chat,Invoice amount does not match the order,16.3,0
+T-20490,07.07.2025,Yuki Sharma,yuki.sharma67@example.com,Low,Chat,Cannot export report to PDF,76.6,0
+T-20491,01.05.2025,Priya Costa,priya.costa97@example.com,Normal,Email,Need help configuring SSO,1.2,0
+T-20492,18.03.2025,Omar Tanaka,omar.tanaka70@example.com,High,Phone,Dashboard loads very slowly,79.2,2
+T-20493,25.06.2025,Tom Silva,tom.silva30@example.com,Urgent,Phone,Need help configuring SSO 520,31.9,2
+T-20494,11.03.2025,Omar Haddad,omar.haddad91@example.com,High,Chat,Dashboard loads very slowly 577,29.7,0
+T-20495,06.04.2025,Elena Tanaka,elena.tanaka28@example.com,High,Email,Need help configuring SSO 648,51.9,0
+T-20496,12.06.2025,Priya Costa,priya.costa52@example.com,High,Chat,Need help configuring SSO 645,24.8,0
+T-20497,12.07.2025,Priya Berg,priya.berg13@example.com,Normal,Email,Feature request: bulk edit 575,38.5,0
+T-20498,02.09.2025,Anna Wright,anna.wright85@example.com,Normal,Phone,Need help configuring SSO,86.4,0
+T-20499,28.05.2025,Omar Haddad,omar.haddad18@example.com,Low,Chat,Dashboard loads very slowly 634,62.7,2
+T-20500,05.06.2025,Diego Sharma,diego.sharma92@example.com,Urgent,Email,Feature request: bulk edit 593,15.1,0
+T-20501,04.05.2025,Yuki Wright,yuki.wright67@example.com,Urgent,Phone,Duplicate records after sync 942,10.2,0
+T-20502,26.06.2025,Omar Haddad,omar.haddad12@example.com,Urgent,Phone,Data import stops at 40 percent,37.4,1
+T-20503,07.06.2025,Priya Silva,priya.silva2@example.com,Urgent,Email,Login fails after password reset 493,71.2,1
+T-20504,17.04.2025,Elena Sharma,elena.sharma12@example.com,Urgent,Phone,Data import stops at 40 percent 776,83.1,0
+T-20505,04.09.2025,Priya Silva,priya.silva58@example.com,Low,Chat,Dashboard loads very slowly 305,35.6,0
+T-20506,09.08.2025,Tom Novak,tom.novak31@example.com,Normal,Phone,Invoice amount does not match the order 310,73.5,0
+T-20507,08.06.2025,Priya Tanaka,priya.tanaka89@example.com,Urgent,Email,Data import stops at 40 percent 192,49.4,0
+T-20508,09.05.2025,Marcus Berg,marcus.berg41@example.com,Urgent,Chat,Login fails after password reset,6.8,0
+T-20509,09.06.2025,Omar Wright,omar.wright59@example.com,Urgent,Phone,Cannot export report to PDF,32.1,0
+T-20510,13.08.2025,Omar Berg,omar.berg78@example.com,Low,Phone,Need help configuring SSO 112,26.6,0
+T-20511,04.05.2025,Marcus Sharma,marcus.sharma75@example.com,Normal,Email,Dashboard loads very slowly 671,59.9,0
+T-20512,31.08.2025,Yuki Novak,yuki.novak68@example.com,Urgent,Chat,Invoice amount does not match the order,70,0
+T-20513,07.05.2025,Tom Sharma,tom.sharma42@example.com,High,Email,Data import stops at 40 percent 819,75.4,0
+T-20514,10.03.2025,Anna Wright,anna.wright39@example.com,Urgent,Chat,Dashboard loads very slowly,80.8,0
+T-20515,29.06.2025,Anna Wright,anna.wright25@example.com,High,Phone,Need help configuring SSO 232,87,0
+T-20516,16.06.2025,Marcus Berg,marcus.berg9@example.com,Normal,Phone,Feature request: bulk edit 90,64.1,0
+T-20517,08.04.2025,Anna Wright,anna.wright39@example.com,High,Chat,Data import stops at 40 percent 727,95,0
+T-20518,16.09.2025,Anna Haddad,anna.haddad36@example.com,Normal,Email,Need help configuring SSO 446,75.6,0
+T-20519,24.05.2025,Anna Haddad,anna.haddad54@example.com,High,Email,Duplicate records after sync,14.9,1
+T-20520,03.07.2025,Yuki Haddad,yuki.haddad45@example.com,Normal,Email,Need help configuring SSO 563,16.5,2
+T-20521,11.04.2025,Yuki Sharma,yuki.sharma79@example.com,Normal,Phone,Cannot export report to PDF,3.1,1
+T-20522,07.06.2025,Yuki Berg,yuki.berg93@example.com,Urgent,Email,Duplicate records after sync 210,59.4,0
+T-20523,08.06.2025,Marcus Berg,marcus.berg14@example.com,Urgent,Phone,Login fails after password reset,89,0
+T-20524,02.06.2025,Anna Sharma,anna.sharma81@example.com,High,Chat,Data import stops at 40 percent 693,42,0
+T-20525,25.05.2025,Priya Novak,priya.novak77@example.com,Urgent,Email,Data import stops at 40 percent 337,7.9,1
+T-20526,10.07.2025,Elena Berg,elena.berg81@example.com,Low,Email,Cannot export report to PDF 96,47.5,2
+T-20527,27.07.2025,Tom Tanaka,tom.tanaka58@example.com,High,Chat,Need help configuring SSO 465,15.9,1
+T-20528,03.07.2025,Yuki Wright,yuki.wright34@example.com,High,Email,Dashboard loads very slowly 16,49.5,0
+T-20529,11.03.2025,Omar Novak,omar.novak41@example.com,High,Chat,Invoice amount does not match the order 563,5.3,0
+T-20530,30.04.2025,Diego Silva,diego.silva13@example.com,Urgent,Chat,Data import stops at 40 percent,33.9,0
+T-20531,07.04.2025,Anna Haddad,anna.haddad3@example.com,Normal,Chat,Feature request: bulk edit 413,21.8,0
+T-20532,04.05.2025,Elena Silva,elena.silva40@example.com,Low,Email,Need help configuring SSO 47,74.4,0
+T-20533,06.06.2025,Yuki Haddad,yuki.haddad45@example.com,Normal,Phone,Invoice amount does not match the order 63,84.4,0
+T-20534,05.05.2025,Priya Novak,priya.novak56@example.com,Urgent,Phone,Data import stops at 40 percent 308,78,0
+T-20535,01.03.2025,Priya Novak,priya.novak74@example.com,Urgent,Chat,Cannot export report to PDF,83.8,2
+T-20536,09.08.2025,Omar Novak,omar.novak66@example.com,Low,Chat,Invoice amount does not match the order,14.3,0
+T-20537,28.05.2025,Marcus Novak,marcus.novak30@example.com,Low,Phone,Need help configuring SSO 255,37.3,0
+T-20538,29.06.2025,Marcus Berg,marcus.berg22@example.com,Urgent,Email,Data import stops at 40 percent 320,70.8,0
+T-20539,01.03.2025,Anna Tanaka,anna.tanaka1@example.com,Low,Email,Feature request: bulk edit,1.4,0
+T-20540,10.09.2025,Omar Sharma,omar.sharma22@example.com,High,Phone,Cannot export report to PDF,61.6,0
+T-20541,01.05.2025,Anna Costa,anna.costa32@example.com,Urgent,Chat,Cannot export report to PDF 62,63.4,0
+T-20542,11.06.2025,Yuki Tanaka,yuki.tanaka41@example.com,Low,Email,Feature request: bulk edit 923,65.8,0
+T-20543,15.05.2025,Tom Tanaka,tom.tanaka68@example.com,High,Email,Cannot export report to PDF,86.1,1
+T-20544,15.04.2025,Elena Wright,elena.wright25@example.com,High,Chat,Login fails after password reset 559,23.5,0
+T-20545,15.09.2025,Priya Costa,priya.costa3@example.com,Urgent,Phone,Feature request: bulk edit,55.9,0
+T-20546,16.05.2025,Marcus Haddad,marcus.haddad43@example.com,Low,Phone,Dashboard loads very slowly,62,2
+T-20547,01.05.2025,Yuki Novak,yuki.novak11@example.com,High,Email,Cannot export report to PDF 263,30.7,0
+T-20548,15.03.2025,Marcus Wright,marcus.wright74@example.com,High,Email,Data import stops at 40 percent,82.9,0
+T-20549,09.08.2025,Anna Haddad,anna.haddad73@example.com,Normal,Phone,Feature request: bulk edit,28.6,1
+T-20550,29.05.2025,Priya Tanaka,priya.tanaka98@example.com,Normal,Chat,Dashboard loads very slowly,53.2,0
+T-20551,30.07.2025,Marcus Berg,marcus.berg45@example.com,Normal,Email,Login fails after password reset 960,22.4,0
+T-20552,02.04.2025,Diego Tanaka,diego.tanaka88@example.com,Low,Email,Dashboard loads very slowly 705,25.1,1
+T-20553,07.09.2025,Omar Wright,omar.wright83@example.com,Normal,Chat,Data import stops at 40 percent 844,8,0
+T-20554,22.04.2025,Marcus Silva,marcus.silva21@example.com,Low,Email,Data import stops at 40 percent,67.1,2
+T-20555,02.08.2025,Elena Sharma,elena.sharma81@example.com,High,Chat,Dashboard loads very slowly 388,55,1
+T-20556,01.04.2025,Tom Berg,tom.berg78@example.com,Low,Email,Login fails after password reset,38.4,1
+T-20557,18.04.2025,Priya Silva,priya.silva65@example.com,High,Phone,Invoice amount does not match the order,36.6,0
+T-20558,07.07.2025,Anna Novak,anna.novak84@example.com,High,Phone,Need help configuring SSO 627,63.4,1
+T-20559,26.04.2025,Elena Sharma,elena.sharma54@example.com,Urgent,Phone,Dashboard loads very slowly 442,3.3,1
+T-20560,04.09.2025,Diego Wright,diego.wright40@example.com,Urgent,Phone,Invoice amount does not match the order,60.2,0
+T-20561,20.06.2025,Anna Berg,anna.berg11@example.com,High,Chat,Login fails after password reset 554,67.6,0
+T-20562,03.09.2025,Marcus Silva,marcus.silva2@example.com,Urgent,Email,Login fails after password reset 277,13.2,0
+T-20563,17.06.2025,Elena Silva,elena.silva40@example.com,High,Email,Need help configuring SSO,14.9,0
+T-20564,08.06.2025,Elena Sharma,elena.sharma23@example.com,Normal,Email,Duplicate records after sync,23.9,0
+T-20565,05.04.2025,Yuki Haddad,yuki.haddad92@example.com,Low,Phone,Login fails after password reset 667,9.5,0
+T-20566,26.06.2025,Priya Berg,priya.berg17@example.com,Low,Phone,Data import stops at 40 percent 142,58.4,1
+T-20567,25.07.2025,Tom Tanaka,tom.tanaka72@example.com,Urgent,Email,Dashboard loads very slowly,29.2,0
+T-20568,30.04.2025,Priya Wright,priya.wright27@example.com,Urgent,Email,Need help configuring SSO,74.5,1
+T-20569,22.03.2025,Diego Haddad,diego.haddad46@example.com,Normal,Email,Invoice amount does not match the order 109,3.7,2
+T-20570,01.04.2025,Yuki Berg,yuki.berg52@example.com,Low,Email,Need help configuring SSO 825,73.3,1
+T-20571,26.06.2025,Tom Novak,tom.novak28@example.com,Low,Phone,Invoice amount does not match the order 447,5.1,0
+T-20572,23.03.2025,Tom Wright,tom.wright99@example.com,Normal,Chat,Cannot export report to PDF 568,69.1,2
+T-20573,09.06.2025,Priya Costa,priya.costa4@example.com,Low,Chat,Invoice amount does not match the order,47.2,0
+T-20574,05.05.2025,Tom Novak,tom.novak61@example.com,Urgent,Email,Dashboard loads very slowly 397,13.7,0
+T-20575,11.05.2025,Tom Wright,tom.wright13@example.com,Urgent,Phone,Feature request: bulk edit,50.2,0
+T-20576,02.04.2025,Yuki Costa,yuki.costa61@example.com,Low,Phone,Invoice amount does not match the order,39.6,0
+T-20577,16.07.2025,Priya Costa,priya.costa27@example.com,Low,Phone,Duplicate records after sync 488,57.6,0
+T-20578,15.05.2025,Tom Sharma,tom.sharma77@example.com,High,Email,Feature request: bulk edit 711,72.9,0
+T-20579,14.05.2025,Yuki Silva,yuki.silva37@example.com,Low,Phone,Feature request: bulk edit 327,83.2,2
+T-20580,20.03.2025,Diego Berg,diego.berg63@example.com,Normal,Chat,Data import stops at 40 percent,5.4,2
+T-20581,07.05.2025,Omar Silva,omar.silva35@example.com,Normal,Email,Duplicate records after sync 920,41.1,0
+T-20582,22.06.2025,Omar Tanaka,omar.tanaka92@example.com,Urgent,Chat,Need help configuring SSO 978,65.1,1
+T-20583,11.08.2025,Omar Berg,omar.berg60@example.com,Urgent,Chat,Feature request: bulk edit 773,33.1,1
+T-20584,22.05.2025,Elena Berg,elena.berg6@example.com,Low,Chat,Data import stops at 40 percent 418,29.1,2
+T-20585,27.03.2025,Omar Sharma,omar.sharma83@example.com,Low,Phone,Feature request: bulk edit,76.1,0
+T-20586,02.05.2025,Marcus Silva,marcus.silva21@example.com,High,Email,Invoice amount does not match the order,91.7,0
+T-20587,03.09.2025,Priya Costa,priya.costa91@example.com,Urgent,Chat,Data import stops at 40 percent 39,89.7,2
+T-20588,12.08.2025,Yuki Wright,yuki.wright51@example.com,Low,Email,Feature request: bulk edit,42.4,0
+T-20589,13.08.2025,Omar Berg,omar.berg53@example.com,Low,Phone,Invoice amount does not match the order,35.8,0
+T-20590,30.06.2025,Diego Silva,diego.silva91@example.com,Normal,Phone,Dashboard loads very slowly,43.1,0
+T-20591,08.03.2025,Marcus Tanaka,marcus.tanaka93@example.com,Urgent,Phone,Feature request: bulk edit,9.2,0
+T-20592,09.09.2025,Marcus Berg,marcus.berg44@example.com,High,Email,Feature request: bulk edit,85.2,0
+T-20593,08.07.2025,Anna Berg,anna.berg31@example.com,Urgent,Chat,Feature request: bulk edit 70,40.7,1
+T-20594,18.08.2025,Marcus Silva,marcus.silva97@example.com,Urgent,Chat,Need help configuring SSO,42.4,1
+T-20595,12.04.2025,Priya Costa,priya.costa23@example.com,Normal,Chat,Duplicate records after sync,70.6,0
+T-20596,16.06.2025,Marcus Haddad,marcus.haddad23@example.com,Low,Phone,Data import stops at 40 percent,58.6,1
+T-20597,22.04.2025,Marcus Sharma,marcus.sharma3@example.com,Low,Chat,Data import stops at 40 percent 88,87.5,0
+T-20598,09.05.2025,Tom Tanaka,tom.tanaka24@example.com,Urgent,Chat,Dashboard loads very slowly,9.6,0
+T-20599,28.08.2025,Anna Novak,anna.novak98@example.com,Urgent,Phone,Need help configuring SSO 958,10.7,0
