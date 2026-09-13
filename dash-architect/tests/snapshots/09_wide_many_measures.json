@@ -1,0 +1,200 @@
+[
+  {
+    "name": "Period",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Plant",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Line",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Batch ID",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Fiscal Year",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "time",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "year_like",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Units Produced",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Units Scrapped",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Scrap Rate",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": { "numerator": "Units Scrapped", "denominator": "Units Produced" },
+    "needsWeightBase": false
+  },
+  {
+    "name": "Output Value",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Material Cost",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Labour Cost",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Overhead",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Cost Per Unit",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "avg",
+    "confidence": "medium",
+    "rule": "per_unit",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "OEE",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "Availability",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "weighted",
+    "confidence": "medium",
+    "rule": "fraction_like",
+    "weightBase": null,
+    "needsWeightBase": true
+  },
+  {
+    "name": "Downtime Minutes",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Shift Count",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Headcount",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

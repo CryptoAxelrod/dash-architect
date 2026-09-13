@@ -1,0 +1,101 @@
+[
+  {
+    "name": "Ticket ID",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Opened",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Customer",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "text",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "default_text",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Email",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "text",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "default_text",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Priority",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Channel",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "dimension",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "low_cardinality",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Subject",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "text",
+    "aggregation": null,
+    "confidence": "low",
+    "rule": "default_text",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Resolution Hours",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Reopened",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

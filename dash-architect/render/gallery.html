@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dash Architect — chart gallery</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#F2F4F0}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;padding:12px 20px;background:#17231F;color:#fff;font-size:13px}
+.themes{display:flex;gap:6px}
+.themes button{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;cursor:pointer}
+.themes button[aria-pressed="true"]{background:#fff;color:#17231F;border-color:#fff}
+.grid{padding:24px;display:grid;grid-template-columns:repeat(2,1fr);gap:20px;max-width:1180px;margin:0 auto}
+.slot{position:relative}
+.slot svg{display:block}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <strong>Chart gallery</strong> — QA: all 5 chart types under each theme
+  <div class="themes" id="themes">
+    <button type="button" data-theme="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+    <button type="button" data-theme="report" aria-pressed="false">Report</button>
+    <button type="button" data-theme="print" aria-pressed="false">Print</button>
+  </div>
+</div>
+<div class="grid" id="grid"></div>
+
+<script src="../engine/values.js"></script>
+<script src="../engine/csv.js"></script>
+<script src="../engine/profile.js"></script>
+<script src="../engine/roles.js"></script>
+<script src="../engine/aggregate.js"></script>
+<script src="../engine/layout.js"></script>
+<script src="../engine/index.js"></script>
+<script src="format.js"></script>
+<script src="themes.js"></script>
+<script src="svg.js"></script>
+<script>
+(async () => {
+  'use strict';
+  const els = { grid: document.getElementById('grid'), themes: document.getElementById('themes') };
+  let themeId = 'light';
+
+  const text = await fetch('/fixtures/01_sales_timeseries.csv').then((r) => r.text());
+  const analysis = window.DashEngine.analyzeCsv(text);
+  const cbn = window.DashEngine.Aggregate.byName(analysis.columns);
+  const Agg = window.DashEngine.Aggregate;
+  const rowIndices = Agg.allRowIndices(analysis.rowCount);
+
+  const revenue = cbn.get('Revenue');
+  const profit = cbn.get('Gross Profit');
+  const region = cbn.get('Region');
+  const category = cbn.get('Category');
+  const timeCol = analysis.columns.find((c) => c.decision.role === 'time');
+
+  const W = 560, H = 300;
+  function rectFor(i) {
+    const col = i % 2, row = Math.floor(i / 2);
+    return { x: 0, y: 0, w: W, h: H }; // each chart is its own <svg> viewport starting at (0,0)
+  }
+
+  // 1) line — reuse the real time+measure bucketing
+  const lineWidget = Object.assign(
+    { id: 'g-line', type: 'line', rect: rectFor(0), title: 'Revenue over time', measureColumn: 'Revenue' },
+    { points: Agg.bucketByTime(timeCol, revenue, rowIndices, cbn), cellFormat: revenue.profile.cellFormat, aggregation: revenue.decision.aggregation }
+  );
+
+  // 2) bar (vertical) — Revenue by Region
+  const barWidget = Object.assign(
+    { id: 'g-bar', type: 'bar', rect: rectFor(1), title: 'Revenue by Region' },
+    { bars: Agg.groupByDimension(region, revenue, rowIndices, cbn), cellFormat: revenue.profile.cellFormat, aggregation: revenue.decision.aggregation }
+  );
+
+  // 3) horizontalBar — same data, horizontal orientation
+  const hBarWidget = Object.assign(
+    { id: 'g-hbar', type: 'horizontalBar', rect: rectFor(2), title: 'Revenue by Region (horizontal)' },
+    { bars: Agg.groupByDimension(region, revenue, rowIndices, cbn), cellFormat: revenue.profile.cellFormat, aggregation: revenue.decision.aggregation }
+  );
+
+  // 4) groupedBar — Revenue vs Gross Profit, grouped by Region
+  const revByRegion = Agg.groupByDimension(region, revenue, rowIndices, cbn).sort((a, b) => a.category.localeCompare(b.category));
+  const categories = revByRegion.map((r) => r.category);
+  const profitByRegion = Agg.groupByDimension(region, profit, rowIndices, cbn);
+  const profitMap = new Map(profitByRegion.map((r) => [r.category, r.value]));
+  const groupedWidget = {
+    id: 'g-grouped', type: 'groupedBar', rect: rectFor(3), title: 'Revenue vs Gross Profit by Region',
+    dimensionColumn: 'Region', // engine/layout.js never produces this widget type, so there's no established field for it — named to match the 'bar'/'horizontalBar' convention (widget.dimensionColumn) for hit-region consumers
+    categories, series: [
+      { name: 'Revenue', values: revByRegion.map((r) => r.value) },
+      { name: 'Gross Profit', values: categories.map((c) => profitMap.get(c) ?? null) },
+    ],
+    cellFormat: revenue.profile.cellFormat, aggregation: revenue.decision.aggregation,
+  };
+
+  // 5) donut — Units by Category (share of total)
+  const units = cbn.get('Units');
+  const unitsByCategory = Agg.groupByDimension(category, units, rowIndices, cbn);
+  const donutWidget = {
+    id: 'g-donut', type: 'donut', rect: rectFor(4), title: 'Units by Category',
+    dimensionColumn: 'Category',
+    slices: unitsByCategory.map((c) => ({ label: c.category, value: c.value })),
+    cellFormat: units.profile.cellFormat, aggregation: units.decision.aggregation,
+  };
+
+  const widgets = [lineWidget, barWidget, hBarWidget, groupedWidget, donutWidget];
+
+  function render() {
+    const theme = window.DashRenderThemes.THEMES[themeId];
+    document.body.style.background = theme.color.paper;
+    els.grid.innerHTML = '';
+    for (const w of widgets) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const { markup } = window.DashRenderSvg.renderChart(w, theme); // renderChart now also returns hit `regions` — unused here, this page is a static preview only
+      slot.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${markup}</svg>`;
+      els.grid.appendChild(slot);
+    }
+  }
+
+  els.themes.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme]');
+    if (!btn) return;
+    themeId = btn.dataset.theme;
+    [...els.themes.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', b === btn));
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

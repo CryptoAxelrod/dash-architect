@@ -1,0 +1,90 @@
+[
+  {
+    "name": "Order ID",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "SKU",
+    "valueType": "text",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Postal Code",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "excluded",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "identifier",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Store No",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Year",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "time",
+    "aggregation": null,
+    "confidence": "medium",
+    "rule": "year_like",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Warehouse Bay",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Quantity",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Amount",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]
