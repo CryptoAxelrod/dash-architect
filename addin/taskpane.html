@@ -29,6 +29,14 @@
   </button>
 </header>
 
+<!-- Temporary diagnostics for the "filters/hover don't work in the real
+     task pane" investigation — remove once resolved. Always visible once
+     populated, since the add-in host has no devtools console. -->
+<div class="debug-panel" id="debug-panel" hidden>
+  <div class="debug-head">Debug (temporary)</div>
+  <pre id="debug-log"></pre>
+</div>
+
 <main id="views">
 
   <!-- Step 1: pick a range -->
@@ -62,28 +70,6 @@
     </section>
   </section>
 
-  <!-- Live interactive preview of what "Place on sheet" will insert -->
-  <section class="view" id="view-preview" hidden>
-    <div class="preview-bar">
-      <div class="themes" id="preview-themes" role="group" aria-label="Theme">
-        <button type="button" data-theme="light" aria-pressed="true">Light</button>
-        <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
-        <button type="button" data-theme="report" aria-pressed="false">Report</button>
-        <button type="button" data-theme="print" aria-pressed="false">Print</button>
-      </div>
-    </div>
-    <div class="scale-stage"><div class="scale-inner" id="preview-mount"></div></div>
-  </section>
-
-  <!-- A dashboard restored from workbook.settings — no source data, see addin/dashboard-io.js -->
-  <section class="view" id="view-restored" hidden>
-    <div class="preview-bar">
-      <p class="restored-note" id="restored-note"></p>
-      <button type="button" class="btn-quiet" id="restored-back">Back</button>
-    </div>
-    <div class="scale-stage"><div class="scale-inner" id="restored-mount"></div></div>
-  </section>
-
   <!-- "Dashboards in this workbook" list -->
   <section class="view" id="view-list" hidden>
     <div class="list-head">
@@ -110,12 +96,9 @@
     <p class="build-timing" id="build-timing" hidden></p>
   </div>
 
-  <div class="build-preview-actions" id="build-preview-actions" hidden>
-    <button type="button" class="cta" id="place-on-sheet">
-      <span class="cta-fill" id="place-fill"></span>
-      <span class="cta-label" id="place-label">Place on sheet</span>
-    </button>
-    <button type="button" class="btn-quiet" id="preview-start-over">Start over</button>
+  <div class="build-open" id="build-open" hidden>
+    <p class="build-open-note">Dashboard opened in a separate window. Keep this pane open — closing it closes the dashboard window too.</p>
+    <button type="button" class="btn-quiet" id="open-start-over">Start over</button>
   </div>
 
   <div class="build-done" id="build-done" hidden role="status">
@@ -148,6 +131,7 @@
 <script src="format-bridge.js"></script>
 <script src="excel-io.js"></script>
 <script src="dashboard-io.js"></script>
+<script src="dialog-messaging.js"></script>
 <script src="taskpane.js"></script>
 </body>
 </html>

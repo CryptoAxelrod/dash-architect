@@ -88,6 +88,7 @@ body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;back
   const profitMap = new Map(profitByRegion.map((r) => [r.category, r.value]));
   const groupedWidget = {
     id: 'g-grouped', type: 'groupedBar', rect: rectFor(3), title: 'Revenue vs Gross Profit by Region',
+    dimensionColumn: 'Region', // engine/layout.js never produces this widget type, so there's no established field for it — named to match the 'bar'/'horizontalBar' convention (widget.dimensionColumn) for hit-region consumers
     categories, series: [
       { name: 'Revenue', values: revByRegion.map((r) => r.value) },
       { name: 'Gross Profit', values: categories.map((c) => profitMap.get(c) ?? null) },
@@ -100,6 +101,7 @@ body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;back
   const unitsByCategory = Agg.groupByDimension(category, units, rowIndices, cbn);
   const donutWidget = {
     id: 'g-donut', type: 'donut', rect: rectFor(4), title: 'Units by Category',
+    dimensionColumn: 'Category',
     slices: unitsByCategory.map((c) => ({ label: c.category, value: c.value })),
     cellFormat: units.profile.cellFormat, aggregation: units.decision.aggregation,
   };
@@ -113,7 +115,7 @@ body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;back
     for (const w of widgets) {
       const slot = document.createElement('div');
       slot.className = 'slot';
-      const markup = window.DashRenderSvg.renderChart(w, theme);
+      const { markup } = window.DashRenderSvg.renderChart(w, theme); // renderChart now also returns hit `regions` — unused here, this page is a static preview only
       slot.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${markup}</svg>`;
       els.grid.appendChild(slot);
     }

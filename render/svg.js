@@ -79,6 +79,33 @@
 
   // --- markers (print theme point shapes) ------------------------------
 
+  // Axis-aligned bounding box of an annular sector, for donut-slice hit
+  // regions — a rectangle, not the wedge shape itself (that's the point of
+  // asking for rectangles: cheap, uniform hit-testing across chart types,
+  // at the cost of a little overlap between adjacent slim slices). The
+  // outer arc's own bounding box always contains the inner arc's, since
+  // both sweep the same angles at a smaller radius, so only the outer
+  // radius needs sampling: the two endpoints plus any cardinal direction
+  // (right/down/left/up) the sweep passes through, which is where an arc's
+  // bounding box can extend past its own endpoints.
+  function arcBoundingRect(cx, cy, outerR, a0, a1) {
+    const norm = (a) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const pts = [
+      [cx + outerR * Math.cos(a0), cy + outerR * Math.sin(a0)],
+      [cx + outerR * Math.cos(a1), cy + outerR * Math.sin(a1)],
+    ];
+    const na0 = norm(a0);
+    const na1 = norm(a1);
+    for (const a of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
+      const na = norm(a);
+      const within = na0 <= na1 ? na >= na0 && na <= na1 : na >= na0 || na <= na1;
+      if (within) pts.push([cx + outerR * Math.cos(a), cy + outerR * Math.sin(a)]);
+    }
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  }
+
   function markerPath(shape, cx, cy, size) {
     const r = size / 2;
     if (shape === 'square') return rect(cx - r, cy - r, r * 2, r * 2, {});
@@ -237,6 +264,31 @@
     const step = points.length > 1 ? plot.w / (points.length - 1) : 0;
     const xy = points.map((p, i) => [plot.x + step * i, p.value == null ? null : scale.y(p.value)]);
 
+    // Hit regions: a full-height vertical lane per point (not just the dot)
+    // — much easier to hover accurately than a few-pixel marker. Adjacent
+    // lanes tile edge-to-edge; the two end lanes are half-width, clamped to
+    // the plot bounds rather than overhanging it.
+    //
+    // dimension is deliberately always null here, not widget.timeColumn:
+    // a point's `category` is a *bucket* label ("Jan 2024" — days/weeks/
+    // months rolled up by engine/aggregate.js#bucketByTime), not a value
+    // that appears anywhere in the time column itself (whose raw values
+    // are per-row epoch milliseconds). Wiring it up as a filter dimension
+    // like a bar/sector's would make render/dom.js send that label to
+    // Aggregate.filterRowIndices, which compares it for equality against
+    // the real per-row epoch values — never matches anything, silently
+    // filtering the whole dashboard to zero rows. Hover/tooltip still work
+    // (they don't need `dimension`); only the click-to-filter wiring
+    // requires it, and time genuinely isn't click-filterable this way.
+    const regions = [];
+    const half = (step || plot.w) / 2;
+    points.forEach((p, i) => {
+      if (p.value == null) return;
+      const rx = Math.max(plot.x, xy[i][0] - half);
+      const rx2 = Math.min(plot.x + plot.w, xy[i][0] + half);
+      regions.push({ rect: { x: rx, y: plot.y, w: rx2 - rx, h: plot.h }, value: p.value, category: p.label, dimension: null });
+    });
+
     const segs = [];
     let cur = [];
     xy.forEach(([x, y]) => {
@@ -266,7 +318,7 @@
       });
     });
 
-    return g(out);
+    return { markup: g(out), regions };
   }
 
   function renderBarChart(widget, theme, horizontal) {
@@ -274,6 +326,7 @@
     const bars = widget.bars;
     const values = bars.map((b) => b.value);
     let out = panelChrome(widget.rect, theme, widget.title);
+    const regions = [];
 
     const { defs, fill } = collectHatchDefs(theme, 1);
     out = defs + out;
@@ -297,6 +350,7 @@
         if (isPeak) {
           out += text(cx, top - 6, Format.formatMeasureValue(widget, b.value, { short: true }), { fill: theme.color.ink, 'font-size': theme.type.axis, 'font-weight': 650, 'text-anchor': 'middle', 'font-family': theme.font.family });
         }
+        regions.push({ rect: { x: cx - bw / 2, y: top, w: bw, h }, value: b.value, category: b.category, dimension: widget.dimensionColumn || null });
       });
       const labelIdx = thinLabels(bars.length, Math.max(2, Math.floor(plot.w / 70)));
       bars.forEach((b, i) => {
@@ -324,10 +378,11 @@
         const w = xScale(b.value) - barPlot.x;
         out += rect(barPlot.x, cy - bh / 2, w, bh, { fill: isPeak ? theme.color.accent : theme.chart.textures ? fill(0) : theme.color.accentSoft, stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null, rx: theme.chart.barRadius });
         out += text(barPlot.x + w + 6, cy + 4, Format.formatMeasureValue(widget, b.value, { short: true }), { fill: theme.color.muted, 'font-size': theme.type.axis, 'font-family': theme.font.family });
+        regions.push({ rect: { x: barPlot.x, y: cy - bh / 2, w, h: bh }, value: b.value, category: b.category, dimension: widget.dimensionColumn || null });
       });
     }
 
-    return g(out);
+    return { markup: g(out), regions };
   }
 
   function truncate(s, n) {
@@ -343,6 +398,7 @@
     const { defs, fill } = collectHatchDefs(theme, series.length);
     out = defs + out;
     out += renderGrid(scale, plot, theme, (v) => Format.formatMeasureValue(widget, v, { short: true }));
+    const regions = [];
 
     const band = plot.w / categories.length;
     const groupW = band * 0.72;
@@ -361,6 +417,7 @@
           stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null,
           rx: theme.chart.barRadius,
         });
+        regions.push({ rect: { x: gx + si * barW, y: top, w: barW - 2, h }, value: v, category: cat, dimension: widget.dimensionColumn || null, series: s.name });
       });
       out += text(plot.x + band * ci + band / 2, widget.rect.y + widget.rect.h - 8, truncate(cat, 12), {
         fill: theme.chart.axisColor, 'font-size': theme.type.axis, 'text-anchor': 'middle', 'font-family': theme.font.family,
@@ -368,7 +425,7 @@
     });
 
     out += renderLegend(series.map((s, i) => ({ label: s.name, swatch: theme.chart.textures ? fill(i) : theme.chart.seriesColors[i % theme.chart.seriesColors.length] })), widget.rect, theme);
-    return g(out);
+    return { markup: g(out), regions };
   }
 
   // Right-aligned, on the title's own baseline — a left-aligned legend
@@ -401,6 +458,7 @@
 
     let angle = -Math.PI / 2;
     const legendItems = [];
+    const regions = [];
     widget.slices.forEach((s, i) => {
       const frac = (s.value || 0) / total;
       const a0 = angle;
@@ -415,6 +473,7 @@
       const swatch = theme.chart.textures ? fill(i) : theme.chart.seriesColors[i % theme.chart.seriesColors.length];
       out += `<path d="${d}" fill="${swatch}" stroke="${theme.color.panel === theme.color.paper ? theme.color.ink : theme.color.panel}" stroke-width="${theme.chart.textures ? 1.5 : 1}"/>`;
       legendItems.push({ label: `${s.label} (${Math.round(frac * 100)}%)`, swatch });
+      regions.push({ rect: arcBoundingRect(cx, cy, outerR, a0, a1), value: s.value, category: s.label, dimension: widget.dimensionColumn || null });
     });
 
     out += text(cx, cy + 4, Format.shortNumber(total), { fill: theme.color.ink, 'font-size': theme.type.kpiValue * 0.7, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': theme.font.family });
@@ -427,16 +486,23 @@
       ly += 20;
     }
 
-    return g(out);
+    return { markup: g(out), regions };
   }
 
+  /**
+   * @returns {{markup:string, regions:Array<{rect:{x,y,w,h}, value:number|null, category:string, dimension:?string, series?:string}>}}
+   *   `markup` is the same SVG fragment as before this method started
+   *   returning an object — the PNG export path (renderDashboardSvg) uses
+   *   only that field, so the exported picture is unaffected by hit
+   *   regions. `regions` is for render/dom.js's interactive overlay.
+   */
   function renderChart(widget, theme) {
     if (widget.type === 'line') return renderLineChart(widget, theme);
     if (widget.type === 'bar') return renderBarChart(widget, theme, false);
     if (widget.type === 'horizontalBar') return renderBarChart(widget, theme, true);
     if (widget.type === 'groupedBar') return renderGroupedBarChart(widget, theme);
     if (widget.type === 'donut') return renderDonutChart(widget, theme);
-    return '';
+    return { markup: '', regions: [] };
   }
 
   // --- table ------------------------------------------------------------
@@ -515,7 +581,7 @@
     if (widget.type === 'filterBar') return renderFilterBar(widget, theme);
     if (widget.type === 'kpi') return renderKpi(widget, theme);
     if (widget.type === 'table') return renderTable(widget, theme, dataColumns);
-    return renderChart(widget, theme);
+    return renderChart(widget, theme).markup; // hit regions are dom.js's concern, not the flattened PNG's
   }
 
   /**

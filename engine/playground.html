@@ -63,6 +63,20 @@ td.r{ text-align:right; }
 .weight-missing{ color:var(--amber); }
 
 .foot{ margin-top:18px; font-size:12px; color:var(--faint); }
+
+.tabs{ display:none; gap:6px; margin:18px 0 14px; }
+.tabs.show{ display:flex; }
+.tabs button{ font:inherit; font-size:12.5px; padding:6px 13px; border-radius:999px; border:1px solid var(--rule); background:var(--panel); color:var(--ink); cursor:pointer; }
+.tabs button[aria-pressed="true"]{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+.dash-toolbar{ display:none; align-items:center; gap:6px; margin-bottom:12px; }
+.dash-toolbar.show{ display:flex; }
+.dash-toolbar button{ font:inherit; font-size:12px; padding:5px 11px; border-radius:999px; border:1px solid var(--rule); background:var(--panel); color:var(--ink); cursor:pointer; }
+.dash-toolbar button[aria-pressed="true"]{ background:var(--green); color:#fff; border-color:var(--green); }
+
+#dashboardSection{ display:none; }
+#dashboardSection.show{ display:block; }
+#dashboardMount{ overflow-x:auto; }
 </style>
 </head>
 <body>
@@ -77,6 +91,21 @@ td.r{ text-align:right; }
 
   <p class="summary" id="summary"></p>
   <p class="error" id="error"></p>
+
+  <div class="tabs" id="tabs" role="group" aria-label="View">
+    <button type="button" data-tab="table" aria-pressed="true">Column profile</button>
+    <button type="button" data-tab="dashboard" aria-pressed="false">Dashboard</button>
+  </div>
+
+  <section id="dashboardSection">
+    <div class="dash-toolbar" id="dashThemes" role="group" aria-label="Theme">
+      <button type="button" data-theme="light" aria-pressed="true">Light</button>
+      <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+      <button type="button" data-theme="report" aria-pressed="false">Report</button>
+      <button type="button" data-theme="print" aria-pressed="false">Print</button>
+    </div>
+    <div id="dashboardMount"></div>
+  </section>
 
   <div class="table-scroll" id="tableScroll">
     <table>
@@ -115,6 +144,11 @@ td.r{ text-align:right; }
 <script src="aggregate.js"></script>
 <script src="layout.js"></script>
 <script src="index.js"></script>
+<script src="../render/format.js"></script>
+<script src="../render/themes.js"></script>
+<script src="../render/svg.js"></script>
+<script src="../render/share.js"></script>
+<script src="../render/dom.js"></script>
 <script>
 (function () {
   'use strict';
@@ -126,7 +160,13 @@ td.r{ text-align:right; }
     error: document.getElementById('error'),
     tableScroll: document.getElementById('tableScroll'),
     tbody: document.getElementById('tbody'),
+    tabs: document.getElementById('tabs'),
+    dashboardSection: document.getElementById('dashboardSection'),
+    dashboardMount: document.getElementById('dashboardMount'),
+    dashThemes: document.getElementById('dashThemes'),
   };
+
+  const state = { analysis: null, dashTheme: 'light', dashController: null };
 
   function fmtNum(v, digits) {
     if (v == null || Number.isNaN(v)) return '—';
@@ -187,6 +227,33 @@ td.r{ text-align:right; }
     els.summary.textContent = `${result.rowCount.toLocaleString('en-US')} rows, ${result.columns.length} columns.`;
     els.summary.classList.add('show');
     els.tableScroll.classList.add('show');
+    els.tabs.classList.add('show');
+  }
+
+  // Same engine output the table above reads (`result` === an
+  // engine/index.js#analyzeTable result) fed straight to the real
+  // interactive renderer — the actual point of this section: prove
+  // filter/hover/sort interactivity by running it, not just reading
+  // render/dom.js and taking it on faith.
+  function renderDashboard(result, filename) {
+    els.dashboardMount.innerHTML = '';
+    const theme = window.DashRenderThemes.THEMES[state.dashTheme];
+    state.dashController = window.DashRenderDom.mount(els.dashboardMount, result, theme, {
+      title: filename ? filename.replace(/\.[^.]+$/, '') : 'Dashboard',
+      subtitle: `${result.rowCount.toLocaleString('en-US')} rows`,
+    });
+    els.dashThemes.classList.add('show');
+    els.dashboardSection.classList.toggle('show', getActiveTab() === 'dashboard');
+  }
+
+  function getActiveTab() {
+    return els.tabs.querySelector('button[aria-pressed="true"]').dataset.tab;
+  }
+
+  function setActiveTab(tab) {
+    [...els.tabs.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === tab)));
+    els.dashboardSection.classList.toggle('show', tab === 'dashboard');
+    els.tableScroll.classList.toggle('show', tab === 'table' && !!state.analysis);
   }
 
   function showError(message) {
@@ -194,6 +261,9 @@ td.r{ text-align:right; }
     els.error.classList.add('show');
     els.summary.classList.remove('show');
     els.tableScroll.classList.remove('show');
+    els.tabs.classList.remove('show');
+    els.dashboardSection.classList.remove('show');
+    els.dashThemes.classList.remove('show');
   }
 
   function handleFile(file) {
@@ -207,7 +277,10 @@ td.r{ text-align:right; }
           showError('No columns found — is this a valid CSV with a header row?');
           return;
         }
+        state.analysis = result;
         render(result);
+        renderDashboard(result, file.name);
+        setActiveTab(getActiveTab());
       } catch (err) {
         showError('Could not analyze this file: ' + (err && err.message ? err.message : String(err)));
       }
@@ -224,6 +297,19 @@ td.r{ text-align:right; }
     els.drop.classList.remove('drag');
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (file) handleFile(file);
+  });
+
+  els.tabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-tab]');
+    if (btn) setActiveTab(btn.dataset.tab);
+  });
+
+  els.dashThemes.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme]');
+    if (!btn || !state.dashController) return;
+    state.dashTheme = btn.dataset.theme;
+    [...els.dashThemes.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    state.dashController.setTheme(window.DashRenderThemes.THEMES[state.dashTheme]); // preserves active filters/sort — a fresh mount() would reset them
   });
 })();
 </script>

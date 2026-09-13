@@ -52,6 +52,13 @@ h1 { margin: 0; font-size: 19px; line-height: 1.1; font-weight: 760; letter-spac
 .icon-btn:hover { border-color: var(--green-mid); }
 .icon-btn svg { width: 16px; height: 16px; fill: var(--muted); }
 
+/* ---------- Debug panel (temporary) ---------- */
+.debug-panel { margin: 10px 16px 0; padding: 8px 10px; background: #FFF6D6; border: 1px solid #E0B400; border-radius: 6px; }
+.debug-panel .debug-head { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; color: #6B5400; margin-bottom: 4px; }
+.debug-panel pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
+.debug-probe { position: absolute; left: 4px; top: 4px; z-index: 999; padding: 4px 7px; background: #FFE066; color: #17231F; border: 1px solid #B98900; font: 11px/1.2 ui-monospace, Menlo, Consolas, monospace; cursor: pointer; }
+.debug-probe[data-hit="1"] { background: #7FD79A; border-color: #1D6F4C; }
+
 /* ---------- Steps (setup view) ---------- */
 main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .view { flex: 1; min-height: 0; overflow-y: auto; }
@@ -103,15 +110,6 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .headers.none span { color: var(--muted); font-weight: 450; border: 0; }
 .headers.none { -webkit-mask-image: none; mask-image: none; }
 
-/* ---------- Preview / restored views ---------- */
-.preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--rule); background: var(--panel); }
-.themes { display: flex; gap: 6px; }
-.themes button { font-size: 11.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; }
-.themes button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
-.restored-note { margin: 0; font-size: 12px; color: var(--muted); }
-.scale-stage { overflow: auto; background: var(--paper); }
-.scale-inner { transform-origin: top left; }
-
 /* ---------- Dashboards list ---------- */
 #view-list { padding: 4px 16px 16px; }
 .list-head { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; margin-bottom: 6px; }
@@ -139,8 +137,7 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .build-error { margin: 8px 0 0; font-size: 12px; color: var(--loss); }
 .build-timing { margin: 8px 0 0; font-size: 11px; color: var(--faint); }
 
-.build-preview-actions { display: flex; gap: 8px; }
-.build-preview-actions .cta { flex: 1; }
+.build-open-note { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 
 .done-row { display: flex; gap: 10px; align-items: flex-start; }
 .done-icon { width: 26px; height: 26px; flex: none; }

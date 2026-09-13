@@ -1,21 +1,26 @@
 /*
- * Dash Architect task pane — the thin adapter wiring the engine/render
- * layers to Excel. All the decision logic (column roles, layout,
- * rendering) already exists in /engine and /render; this file only:
+ * Dash Architect task pane — the control panel: range picking, reading the
+ * selected range, and reacting to what the dialog reports back. The actual
+ * interactive dashboard (render/dom.js#mount / #mountFrozen) lives in its
+ * own window, addin/dashboard-dialog.html, opened via
+ * Office.context.ui.displayDialogAsync — this pane and that dialog talk
+ * over addin/dialog-messaging.js's chunked JSON channel (see the "dashboard
+ * dialog" section below). This file:
  *   1. reads the selected range (addin/excel-io.js, chunked, format
  *      sampled) and feeds it to engine.analyzeTable exactly like the CSV
  *      path does,
- *   2. shows the resulting dashboard live in this pane
- *      (render/dom.js#mount),
- *   3. on "Place on sheet": rasterizes it (render/share.js), inserts the
- *      PNG via worksheet.shapes.addImage, and saves a self-contained
- *      snapshot (engine/layout.js#buildStorageSnapshot) + the column
- *      mapping into workbook.settings, keyed to the picture's name
- *      (addin/dashboard-io.js),
+ *   2. opens the dialog and streams it {analysis, meta} so it can mount the
+ *      live dashboard itself,
+ *   3. on the dialog's "Place image on sheet" message: rasterizes the
+ *      dialog's current (already filtered/sorted) spec (render/share.js),
+ *      inserts the PNG via worksheet.shapes.addImage, and saves a
+ *      self-contained snapshot (engine/layout.js#buildStorageSnapshot) +
+ *      the column mapping into workbook.settings, keyed to the picture's
+ *      name (addin/dashboard-io.js) — then messages the result back,
  *   4. reopens a saved dashboard — via the reliable "Dashboards in this
  *      workbook" list, or a best-effort guess when the selection changes
- *      to something that isn't a normal cell range — as a frozen,
- *      no-recompute view (render/dom.js#mountFrozen).
+ *      to something that isn't a normal cell range — in the same dialog,
+ *      frozen/no-recompute (render/dom.js#mountFrozen).
  *
  * Runs two ways, chosen once at startup by `host` below:
  *   - inside Excel: every step above is real Office.js.
@@ -41,15 +46,12 @@
     beforePick: null,
     busy: false,
     analysis: null,
-    layoutSpec: null,
     sourceAddress: null,
     title: null,
-    previewController: null,
-    previewTheme: 'light',
     result: null,
   };
   let host = null;
-  let activeScale = null; // {mountEl, stageEl, canvasSize} — reapplied on resize
+  let currentDialog = null; // the dashboard-dialog.html window currently open, if any — see openDialog()
 
   /* ---------- start ---------- */
   let started = false;
@@ -157,15 +159,15 @@
 
   function init() {
     Object.assign(els, {
-      showList: $('show-list'), viewSetup: $('view-setup'), viewPreview: $('view-preview'), viewRestored: $('view-restored'), viewList: $('view-list'),
+      showList: $('show-list'), viewSetup: $('view-setup'), viewList: $('view-list'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
       hint: $('ref-hint'), meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
-      summary: $('summary'), build: $('build'), buildIdle: $('build-idle'), buildPreviewActions: $('build-preview-actions'), buildDone: $('build-done'),
+      summary: $('summary'), build: $('build'), buildIdle: $('build-idle'), buildOpen: $('build-open'), buildDone: $('build-done'),
       generate: $('generate'), ctaLabel: $('cta-label'), ctaFill: $('cta-fill'), buildError: $('build-error'), buildTiming: $('build-timing'),
-      placeOnSheet: $('place-on-sheet'), placeFill: $('place-fill'), placeLabel: $('place-label'), previewStartOver: $('preview-start-over'),
+      openStartOver: $('open-start-over'),
       doneSub: $('done-sub'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
-      previewThemes: $('preview-themes'), previewMount: $('preview-mount'), restoredNote: $('restored-note'), restoredBack: $('restored-back'), restoredMount: $('restored-mount'),
       listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
+      debugPanel: $('debug-panel'), debugLog: $('debug-log'),
     });
 
     els.refBtn.addEventListener('click', (e) => { e.stopPropagation(); state.picking ? finishPicking() : startPicking(); });
@@ -173,23 +175,11 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.picking) cancelPicking(); });
 
     els.generate.addEventListener('click', generate);
-    els.placeOnSheet.addEventListener('click', placeOnSheet);
-    els.previewStartOver.addEventListener('click', startOver);
+    els.openStartOver.addEventListener('click', startOver);
     els.doneStartOver.addEventListener('click', startOver);
     els.doneViewList.addEventListener('click', showList);
     els.showList.addEventListener('click', showList);
     els.listBack.addEventListener('click', () => showView('setup'));
-    els.restoredBack.addEventListener('click', () => showView('setup'));
-
-    els.previewThemes.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-theme]');
-      if (!btn) return;
-      state.previewTheme = btn.dataset.theme;
-      [...els.previewThemes.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
-      if (state.previewController) state.previewController.setTheme(window.DashRenderThemes.THEMES[state.previewTheme]);
-    });
-
-    window.addEventListener('resize', () => { if (activeScale) applyScale(activeScale.mountEl, activeScale.stageEl, activeScale.canvasSize); });
 
     if (state.excel) {
       Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
@@ -281,6 +271,15 @@
       : 'Choose data above';
   }
 
+  /* ---------- debug (temporary) — surfaces dialog/messaging lifecycle
+     events with no console available in the add-in host; remove once the
+     dialog architecture has proven itself in real Excel. ---------- */
+  function logDebug(text) {
+    els.debugPanel.hidden = false;
+    const line = `[${new Date().toLocaleTimeString()}] ${text}`;
+    els.debugLog.textContent = els.debugLog.textContent ? `${els.debugLog.textContent}\n${line}` : line;
+  }
+
   /* ---------- generate ---------- */
   async function generate() {
     if (state.busy || !state.range) return;
@@ -297,12 +296,10 @@
       setCta('Classifying columns…', 66);
       const analysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
 
-      setCta('Building the dashboard…', 100);
+      setCta('Opening dashboard window…', 100);
       const title = splitAddress(state.range.address).sheet || 'Dashboard';
-      const layoutSpec = window.DashEngine.buildLayoutSpec(analysis, { title, subtitle: `${(totalRows - 1).toLocaleString('en-US')} rows` });
 
       state.analysis = analysis;
-      state.layoutSpec = layoutSpec;
       state.sourceAddress = state.range.address;
       state.title = title;
 
@@ -311,8 +308,8 @@
         els.buildTiming.textContent = `Read ${totalRows.toLocaleString('en-US')} rows in ${timing.totalMs}ms (values ${timing.valuesMs}ms, format sample ${timing.formatMs}ms)`;
       }
 
-      showPreview();
-      setFooterState('preview');
+      await openLiveDashboard();
+      setFooterState('open');
     } catch (err) {
       els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
       els.buildError.hidden = false;
@@ -330,69 +327,152 @@
     els.ctaFill.style.width = `${pct}%`;
   }
 
-  function showPreview() {
-    // showView first: applyScale measures the stage's actual (laid-out)
-    // width, which is 0 while its view still has the `hidden` attribute
-    // (display:none) — measuring before revealing it silently produced a
-    // scale of 1 (no shrink at all) every time.
-    showView('preview');
-    els.previewMount.innerHTML = '';
-    state.previewTheme = 'light';
-    [...els.previewThemes.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === 'light')));
-    state.previewController = window.DashRenderDom.mount(
-      els.previewMount,
-      state.analysis,
-      window.DashRenderThemes.THEMES.light,
-      { title: state.title, subtitle: `${state.analysis.rowCount.toLocaleString('en-US')} rows` }
-    );
-    activeScale = { mountEl: els.previewMount, stageEl: els.previewMount.parentElement, canvasSize: state.previewController.getLayoutSpec().canvas };
-    applyScale(activeScale.mountEl, activeScale.stageEl, activeScale.canvasSize);
+  /* ---------- dashboard dialog: opens the interactive dashboard in its own
+     window (Office.context.ui.displayDialogAsync) instead of the cramped
+     task pane. The dialog can't reach Excel itself, so all it gets is JSON
+     over addin/dialog-messaging.js's chunked channel, and the one thing it
+     needs Excel for — placing the image — it asks this pane to do. See
+     SPEC.md for the full protocol writeup. ---------- */
+
+  function dialogUrl() {
+    return new URL('dashboard-dialog.html', location.href).href;
   }
 
-  /* ---------- place on sheet ---------- */
-  async function placeOnSheet() {
-    if (state.busy) return;
-    state.busy = true;
-    els.buildError.hidden = true;
-    els.placeFill.style.transitionDuration = '300ms';
-
-    try {
-      setPlaceCta('Rendering image…', 40);
-      const theme = window.DashRenderThemes.THEMES[state.previewTheme];
-      const pcState = state.previewController.getState();
-      const widgets = window.DashEngine.recomputeLayout(state.analysis, state.layoutSpec.widgets, { activeFilters: pcState.activeFilters, sort: pcState.sort });
-      const currentSpec = { canvas: state.layoutSpec.canvas, widgets };
-      const columnsByName = window.DashEngine.Aggregate.byName(state.analysis.columns);
-      const pngBase64 = await window.DashRenderShare.renderPngBase64(currentSpec, theme, columnsByName, { scale: 2 });
-
-      setPlaceCta('Placing on sheet…', 80);
-      const snapshot = window.DashEngine.Layout.buildStorageSnapshot(currentSpec, state.analysis.columns);
-      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation }));
-
-      setPlaceCta('Saving…', 100);
-      const { shapeName } = await host.placeDashboard({
-        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: state.sourceAddress, title: state.title,
+  function openDialogExcel(url) {
+    return new Promise((resolve, reject) => {
+      Office.context.ui.displayDialogAsync(url, { width: 85, height: 85, promptBeforeOpen: false }, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) reject(result.error);
+        else resolve(result.value);
       });
+    });
+  }
 
-      state.result = { shapeName };
-      els.doneSub.textContent = state.excel
-        ? `It's on the sheet as a picture named "${shapeName}". Anyone opening the file just sees a picture; with this add-in, reopening it — from "Dashboards in this workbook" or by clicking it — restores the interactive version without re-reading the sheet.`
-        : `Preview mode (no Excel host here): "${shapeName}" was saved in memory instead of workbook.settings. Open "Dashboards in this workbook" below to see the restored, no-recompute view.`;
-      setFooterState('done');
+  // Mimics the native dialog object's shape (messageChild/addEventHandler/
+  // close) over window.open + postMessage, so previewHost can exercise the
+  // exact same chunking/handshake/place-on-sheet code paths outside Excel.
+  // The dialog page's own "Place image on sheet" button always goes through
+  // this message round trip too (never a direct local call) — otherwise a
+  // browser-only shortcut would stop proving anything about the real path.
+  function openDialogPreview(url) {
+    const win = window.open(url, 'dash-dialog', 'width=1200,height=850');
+    const handlers = {};
+    const onMessage = (e) => {
+      if (e.source !== win || !e.data || e.data.__dashDialog !== true) return;
+      (handlers[Office.EventType.DialogMessageReceived] || []).forEach((cb) => cb({ message: e.data.message }));
+    };
+    window.addEventListener('message', onMessage);
+    const closedTimer = setInterval(() => {
+      if (win.closed) {
+        clearInterval(closedTimer);
+        window.removeEventListener('message', onMessage);
+        (handlers[Office.EventType.DialogEventReceived] || []).forEach((cb) => cb({ error: 12006 }));
+      }
+    }, 400);
+    return {
+      messageChild(str) { if (!win.closed) win.postMessage({ __dashDialog: true, message: str }, location.origin); },
+      addEventHandler(type, cb) { (handlers[type] || (handlers[type] = [])).push(cb); },
+      close() { clearInterval(closedTimer); window.removeEventListener('message', onMessage); if (!win.closed) win.close(); },
+    };
+  }
+
+  // Only one dialog at a time — close whatever's open before starting a new one.
+  async function openDialog(url) {
+    if (currentDialog) {
+      try { currentDialog.close(); } catch (e) { /* already gone */ }
+      currentDialog = null;
+    }
+    const dlg = state.excel ? await openDialogExcel(url) : openDialogPreview(url);
+    currentDialog = dlg;
+    dlg.addEventHandler(Office.EventType.DialogEventReceived, () => { if (currentDialog === dlg) currentDialog = null; });
+    return dlg;
+  }
+
+  function sendDataToDialog(dlg, data) {
+    const Msg = window.DashDialogMessaging;
+    const requestId = Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.DATA, data);
+    logDebug(`dialog: sent ${data.mode} data (request ${requestId}).`);
+  }
+
+  async function openLiveDashboard() {
+    const dlg = await openDialog(dialogUrl());
+    logDebug('dialog: opened, waiting for ready…');
+    const Msg = window.DashDialogMessaging;
+
+    let resolveReady;
+    const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
+    const readyReceiver = Msg.createChunkReceiver(Msg.KIND.READY, () => resolveReady());
+    const placeReceiver = Msg.createChunkReceiver(Msg.KIND.PLACE_ON_SHEET, (spec, requestId) => handlePlaceOnSheet(dlg, spec, requestId));
+    dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+      readyReceiver(arg.message) || placeReceiver(arg.message);
+    });
+
+    await readyPromise;
+    logDebug('dialog: ready, sending data.');
+    sendDataToDialog(dlg, {
+      mode: 'live',
+      analysis: state.analysis,
+      meta: { title: state.title, subtitle: `${state.analysis.rowCount.toLocaleString('en-US')} rows` },
+    });
+  }
+
+  async function openRestoredDashboard(d) {
+    showView('setup');
+    try {
+      const dlg = await openDialog(dialogUrl());
+      logDebug('dialog: opened (restored), waiting for ready…');
+      const Msg = window.DashDialogMessaging;
+
+      let resolveReady;
+      const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
+      const readyReceiver = Msg.createChunkReceiver(Msg.KIND.READY, () => resolveReady());
+      dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => readyReceiver(arg.message));
+
+      await readyPromise;
+      sendDataToDialog(dlg, { mode: 'frozen', layoutSpec: d.payload.layoutSpec });
     } catch (err) {
-      els.buildError.textContent = `Could not place the dashboard: ${err && err.message ? err.message : String(err)}`;
-      els.buildError.hidden = false;
-    } finally {
-      state.busy = false;
-      els.placeFill.style.transitionDuration = '0ms';
-      els.placeFill.style.width = '0';
-      els.placeLabel.textContent = 'Place on sheet';
+      logDebug(`openRestoredDashboard: could not open the dialog — ${err && err.message ? err.message : String(err)}`);
     }
   }
 
-  function setPlaceCta(label, pct) {
-    els.placeLabel.textContent = label;
-    els.placeFill.style.width = `${pct}%`;
+  // Runs the actual Excel work for "Place image on sheet" — unchanged from
+  // before the dialog existed, apart from taking the already-resolved
+  // {canvas, widgets, theme} the dialog sends instead of reading a local
+  // mount controller (that controller now lives in the dialog's own window,
+  // a separate JS realm this pane has no access to).
+  async function placeOnSheet(spec) {
+    try {
+      const theme = window.DashRenderThemes.THEMES[spec.theme || 'light'];
+      const currentSpec = { canvas: spec.canvas, widgets: spec.widgets };
+      const columnsByName = window.DashEngine.Aggregate.byName(state.analysis.columns);
+      const pngBase64 = await window.DashRenderShare.renderPngBase64(currentSpec, theme, columnsByName, { scale: 2 });
+
+      const snapshot = window.DashEngine.Layout.buildStorageSnapshot(currentSpec, state.analysis.columns);
+      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation }));
+
+      const { shapeName } = await host.placeDashboard({
+        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: state.sourceAddress, title: state.title,
+      });
+      return { ok: true, shapeName };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  }
+
+  async function handlePlaceOnSheet(dlg, spec, requestId) {
+    logDebug(`place-on-sheet: request received (${requestId}).`);
+    const result = await placeOnSheet(spec);
+    const Msg = window.DashDialogMessaging;
+    Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.PLACE_ON_SHEET_RESULT, result, null, requestId);
+    if (result.ok) {
+      state.result = { shapeName: result.shapeName };
+      els.doneSub.textContent = state.excel
+        ? `It's on the sheet as a picture named "${result.shapeName}". Anyone opening the file just sees a picture; with this add-in, reopening it — from "Dashboards in this workbook" or by clicking it — opens the interactive version again in a dialog, without re-reading the sheet.`
+        : `Preview mode (no Excel host here): "${result.shapeName}" was saved in memory instead of workbook.settings. Open "Dashboards in this workbook" below to see the restored, no-recompute view.`;
+      setFooterState('done');
+      logDebug(`place-on-sheet: placed as "${result.shapeName}".`);
+    } else {
+      logDebug(`place-on-sheet: failed — ${result.error}`);
+    }
   }
 
   /* ---------- dashboards list / restore ---------- */
@@ -438,24 +518,13 @@
     return li;
   }
 
-  function openRestoredDashboard(d) {
-    showView('restored'); // before applyScale — see the comment in showPreview
-    els.restoredMount.innerHTML = '';
-    const theme = window.DashRenderThemes.THEMES.light;
-    window.DashRenderDom.mountFrozen(els.restoredMount, d.payload.layoutSpec, theme);
-    const when = d.payload.generatedAt ? new Date(d.payload.generatedAt).toLocaleString() : 'unknown time';
-    els.restoredNote.textContent = `${d.payload.title || d.shapeName} · generated ${when} · restored without re-reading the sheet`;
-    activeScale = { mountEl: els.restoredMount, stageEl: els.restoredMount.parentElement, canvasSize: d.payload.layoutSpec.canvas };
-    applyScale(activeScale.mountEl, activeScale.stageEl, activeScale.canvasSize);
-  }
-
   async function maybeOpenClickedDashboard() {
     if (state.busy || state.picking) return;
     const maybeShape = await host.probeNonRangeSelection();
     if (!maybeShape) return;
     try {
       const dashboards = await host.listDashboards();
-      if (dashboards.length === 1) openRestoredDashboard(dashboards[0]);
+      if (dashboards.length === 1) await openRestoredDashboard(dashboards[0]);
       else if (dashboards.length > 1) showList();
     } catch (e) { /* leave the pane as it is */ }
   }
@@ -463,25 +532,14 @@
   /* ---------- view/footer state ---------- */
   function showView(name) {
     els.viewSetup.hidden = name !== 'setup';
-    els.viewPreview.hidden = name !== 'preview';
-    els.viewRestored.hidden = name !== 'restored';
     els.viewList.hidden = name !== 'list';
-    els.build.hidden = name === 'restored' || name === 'list';
+    els.build.hidden = name === 'list';
   }
 
   function setFooterState(s) {
     els.buildIdle.hidden = s !== 'idle';
-    els.buildPreviewActions.hidden = s !== 'preview';
+    els.buildOpen.hidden = s !== 'open';
     els.buildDone.hidden = s !== 'done';
-  }
-
-  function applyScale(mountEl, stageEl, canvasSize) {
-    const available = stageEl.clientWidth || mountEl.parentElement.clientWidth || canvasSize.width;
-    const scale = Math.min(1, available / canvasSize.width);
-    mountEl.style.transformOrigin = 'top left';
-    mountEl.style.transform = `scale(${scale})`;
-    stageEl.style.height = `${Math.round(canvasSize.height * scale)}px`;
-    stageEl.style.overflowX = 'hidden';
   }
 
   function startOver() {
@@ -489,12 +547,13 @@
     state.range = null;
     state.beforePick = null;
     state.analysis = null;
-    state.layoutSpec = null;
-    state.previewController = null;
+    state.sourceAddress = null;
+    state.title = null;
     state.result = null;
-    activeScale = null;
-    els.previewMount.innerHTML = '';
-    els.restoredMount.innerHTML = '';
+    if (currentDialog) {
+      try { currentDialog.close(); } catch (e) { /* already gone */ }
+      currentDialog = null;
+    }
     els.buildError.hidden = true;
     els.buildTiming.hidden = true;
     els.hint.hidden = true;

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Dash Architect</title>
+<link rel="stylesheet" href="dashboard-dialog.css">
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="themes" id="dlg-themes">
+    <button type="button" data-theme="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+    <button type="button" data-theme="report" aria-pressed="false">Report</button>
+    <button type="button" data-theme="print" aria-pressed="false">Print</button>
+  </div>
+  <p class="status" id="dlg-status" hidden></p>
+</div>
+<div class="stage"><div class="inner" id="dlg-mount"></div></div>
+
+<script src="../engine/values.js"></script>
+<script src="../engine/csv.js"></script>
+<script src="../engine/profile.js"></script>
+<script src="../engine/roles.js"></script>
+<script src="../engine/aggregate.js"></script>
+<script src="../engine/layout.js"></script>
+<script src="../engine/index.js"></script>
+<script src="../render/format.js"></script>
+<script src="../render/themes.js"></script>
+<script src="../render/svg.js"></script>
+<script src="../render/share.js"></script>
+<script src="../render/dom.js"></script>
+<script src="dialog-messaging.js"></script>
+<script src="dashboard-dialog.js"></script>
+</body>
+</html>

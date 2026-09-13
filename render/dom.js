@@ -69,15 +69,17 @@
   // --- stateless widget renderers: header/KPI/chart carry every number
   // they need inline, live or frozen, so one implementation covers both. --
 
-  function renderHeader(w, theme, shareButton) {
+  function renderHeader(w, theme, shareButton, placeButton) {
     const c = theme.color;
     const wrap = el('div', { style: absRect(w.rect) });
-    const titleCol = el('div', { style: { position: 'absolute', left: 0, top: 0, right: '140px' } });
+    const rightWidth = placeButton ? '300px' : '140px';
+    const titleCol = el('div', { style: { position: 'absolute', left: 0, top: 0, right: rightWidth } });
     titleCol.appendChild(el('h1', { style: { margin: 0, font: `700 ${theme.type.h1}px ${theme.font.family}`, color: c.ink, letterSpacing: '-0.01em' } }, w.title || ''));
     if (w.subtitle) {
       titleCol.appendChild(el('p', { style: { margin: '4px 0 0', font: `${theme.type.subtitle}px ${theme.font.family}`, color: c.muted } }, w.subtitle));
     }
     wrap.appendChild(titleCol);
+    if (placeButton) { placeButton.style.right = '108px'; wrap.appendChild(placeButton); }
     if (shareButton) wrap.appendChild(shareButton);
     return wrap;
   }
@@ -107,6 +109,38 @@
     return btn;
   }
 
+  // Lives only in the dialog's live mode (see mount()'s `onPlaceOnSheet`
+  // param) — the dialog has no Office.js access of its own (it's a separate
+  // browser context), so this never touches Excel directly. It hands the
+  // current, already-filtered/sorted spec to `onPlaceOnSheet`, which the
+  // add-in layer wires to message the task pane and actually place it; this
+  // module stays host-agnostic like the rest of render/dom.js.
+  function renderPlaceButton(theme, getSpecForShare, onPlaceOnSheet) {
+    const c = theme.color;
+    const btn = el('button', {
+      type: 'button',
+      style: {
+        position: 'absolute', right: 0, top: 0, font: `13px ${theme.font.family}`, fontWeight: 600,
+        padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.rule}`,
+        background: 'transparent', color: c.ink, cursor: 'pointer',
+      },
+    }, 'Place image on sheet');
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.busy) return;
+      btn.dataset.busy = '1';
+      const original = btn.textContent;
+      btn.textContent = 'Placing…';
+      try {
+        const result = await onPlaceOnSheet(getSpecForShare());
+        btn.textContent = result && result.ok ? 'Placed' : `Could not place${result && result.error ? `: ${result.error}` : ''}`;
+      } catch (e) {
+        btn.textContent = `Could not place${e && e.message ? `: ${e.message}` : ''}`;
+      }
+      setTimeout(() => { btn.textContent = original; delete btn.dataset.busy; }, 2200);
+    });
+    return btn;
+  }
+
   function renderKpi(w, theme) {
     const c = theme.color;
     const isHero = w.variant === 'hero';
@@ -129,10 +163,68 @@
     return wrap;
   }
 
-  function renderChartWidget(w, theme) {
-    const svgMarkup = Svg.renderChart(w, theme);
+  function regionTooltipText(widget, region, theme) {
+    const valueStr = Format.formatMeasureValue(widget, region.value, { negativeStyle: theme.negativeStyle });
+    const label = region.series ? `${region.series} — ${region.category}` : region.category;
+    return `${label}: ${valueStr}`;
+  }
+
+  /**
+   * Draws the chart exactly as render/svg.js produced it (same markup, same
+   * geometry — see Svg.renderChart's doc comment) and lays a transparent
+   * interactive layer over it built from the `regions` that call now also
+   * returns: one div per bar/point/sector, sized and positioned from
+   * `region.rect` (already in the same absolute coordinate space as
+   * `w.rect`, so converting to a position *within* this holder is just
+   * subtracting the holder's own origin).
+   *
+   * @param {Function} [onRegionClick] `(dimensionColumnName, categoryValue) => void` — omit in frozen/read-only mode (mountFrozen) so hover/tooltip still work but nothing is clickable, matching that mode's "no source data to refilter" contract.
+   */
+  function renderChartWidget(w, theme, onRegionClick) {
+    const { markup, regions } = Svg.renderChart(w, theme);
     const holder = el('div', { style: absRect(w.rect) });
-    holder.innerHTML = `<svg viewBox="${w.rect.x} ${w.rect.y} ${w.rect.w} ${w.rect.h}" width="100%" height="100%">${svgMarkup}</svg>`;
+    holder.innerHTML = `<svg viewBox="${w.rect.x} ${w.rect.y} ${w.rect.w} ${w.rect.h}" width="100%" height="100%">${markup}</svg>`;
+    if (!regions || !regions.length) return holder;
+
+    const tooltip = el('div', {
+      style: {
+        position: 'absolute', display: 'none', pointerEvents: 'none', zIndex: 20, maxWidth: '220px', whiteSpace: 'nowrap',
+        background: theme.color.ink, color: theme.color.panel, font: `12px ${theme.font.family}`,
+        padding: '5px 9px', borderRadius: px(theme.radius.sm),
+      },
+    });
+
+    for (const region of regions) {
+      const rx = region.rect.x - w.rect.x;
+      const ry = region.rect.y - w.rect.y;
+      const clickable = !!(region.dimension && onRegionClick);
+      const overlay = el('div', {
+        'data-hit-region': '1', // marker only, for taskpane.js's debug panel to count — no behavioral effect
+        style: {
+          position: 'absolute', left: px(rx), top: px(ry), width: px(region.rect.w), height: px(region.rect.h),
+          background: theme.color.accent, opacity: 0, boxSizing: 'border-box', border: '1px solid transparent',
+          cursor: clickable ? 'pointer' : 'default', transition: 'opacity .1s',
+        },
+      });
+      overlay.addEventListener('mouseenter', () => {
+        overlay.style.opacity = '0.16';
+        overlay.style.borderColor = theme.color.accent;
+        tooltip.textContent = regionTooltipText(w, region, theme);
+        tooltip.style.display = 'block';
+        const tw = tooltip.offsetWidth || 80;
+        const th = tooltip.offsetHeight || 24;
+        tooltip.style.left = px(Math.max(0, Math.min(rx + region.rect.w / 2 - tw / 2, w.rect.w - tw)));
+        tooltip.style.top = px(Math.max(0, ry - th - 6));
+      });
+      overlay.addEventListener('mouseleave', () => {
+        overlay.style.opacity = '0';
+        overlay.style.borderColor = 'transparent';
+        tooltip.style.display = 'none';
+      });
+      if (clickable) overlay.addEventListener('click', () => onRegionClick(region.dimension, region.category));
+      holder.appendChild(overlay);
+    }
+    holder.appendChild(tooltip);
     return holder;
   }
 
@@ -162,9 +254,13 @@
    * @param {{rowCount:number, columns:Array}} analysis engine/index.js#analyzeTable result
    * @param {object} theme render/themes.js theme
    * @param {{title?:string, subtitle?:string}} [meta]
+   * @param {{onPlaceOnSheet?: (spec:{canvas,widgets}) => Promise<{ok:boolean, shapeName?:string, error?:string}>}} [opts]
+   *   `onPlaceOnSheet` is omitted entirely in every host except the dialog
+   *   (addin/dashboard-dialog.js) — see renderPlaceButton's doc comment.
    * @returns {{setTheme(theme):void, getState():object, getLayoutSpec():object}}
    */
-  function mount(container, analysis, theme, meta) {
+  function mount(container, analysis, theme, meta, opts) {
+    const onPlaceOnSheet = opts && opts.onPlaceOnSheet;
     const Engine = window.DashEngine; // browser-global; Node callers pass their own via a future param if ever needed
     const layoutSpec = Engine.buildLayoutSpec(analysis, meta);
     const columnsByName = Engine.Aggregate.byName(analysis.columns);
@@ -196,12 +292,29 @@
       renderAll();
     }
 
+    // A chart region's click hands back the dimension column driving that
+    // bar/point/sector and the category it represents — add it to that
+    // dimension's active filter set exactly like checking its box in the
+    // filter popover would (additive, not a replace/toggle: clicking twice
+    // on two different bars filters to both, matching the popover's own
+    // multi-select semantics).
+    function addToFilter(dimensionColumn, value) {
+      const next = new Set(state.activeFilters[dimensionColumn] || []);
+      next.add(value);
+      setState({ activeFilters: Object.assign({}, state.activeFilters, { [dimensionColumn]: next }) });
+    }
+
     function renderWidget(w) {
-      if (w.type === 'header') return renderHeader(w, state.theme, renderShareButton(state.theme, () => ({ canvas: layoutSpec.canvas, widgets: currentWidgets() }), columnsByName));
+      if (w.type === 'header') {
+        const getSpecForShare = () => ({ canvas: layoutSpec.canvas, widgets: currentWidgets() });
+        const shareButton = renderShareButton(state.theme, getSpecForShare, columnsByName);
+        const placeButton = onPlaceOnSheet ? renderPlaceButton(state.theme, getSpecForShare, onPlaceOnSheet) : null;
+        return renderHeader(w, state.theme, shareButton, placeButton);
+      }
       if (w.type === 'filterBar') return renderFilterBar(w);
       if (w.type === 'kpi') return renderKpi(w, state.theme);
       if (w.type === 'table') return renderTable(w);
-      return renderChartWidget(w, state.theme);
+      return renderChartWidget(w, state.theme, addToFilter);
     }
 
     function renderFilterBar(w) {
