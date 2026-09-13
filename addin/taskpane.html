@@ -55,6 +55,7 @@
           <div class="ref-text" aria-live="polite">
             <span class="ref-placeholder" id="ref-placeholder">No range yet</span>
             <span class="ref-cells" id="ref-cells" hidden></span>
+            <span class="ref-table-badge" id="ref-table-badge" hidden></span>
             <span class="ref-sheet" id="ref-sheet" hidden></span>
           </div>
           <button type="button" class="ref-btn" id="ref-btn">Select range</button>
@@ -80,6 +81,18 @@
     <ul class="dash-list" id="dash-list"></ul>
   </section>
 
+  <!-- Column-role review, shown when the source has more than 6 columns —
+       see CLAUDE.md §7: picks made here persist across every later Refresh -->
+  <section class="view" id="view-mapping" hidden>
+    <div class="list-head">
+      <h2>Review column roles</h2>
+      <button type="button" class="btn-quiet" id="mapping-cancel">Cancel</button>
+    </div>
+    <p class="mapping-hint">More than 6 columns — check the roles below before generating. Pre-filled from automatic detection.</p>
+    <div class="mapping-list" id="mapping-list"></div>
+    <button type="button" class="cta cta-static" id="mapping-generate">Generate dashboard</button>
+  </section>
+
 </main>
 
 <footer class="build" id="build" data-state="idle">
@@ -92,6 +105,11 @@
       <span class="cta-fill" id="cta-fill"></span>
       <span class="cta-label" id="cta-label">Generate dashboard</span>
     </button>
+    <div class="cta-row" id="reopen-row" hidden>
+      <button type="button" class="cta cta-static" id="reopen-dashboard">Open dashboard</button>
+      <button type="button" class="btn-quiet" id="new-dashboard">New dashboard</button>
+    </div>
+    <button type="button" class="btn-quiet" id="cancel-change-range" hidden>Cancel</button>
     <p class="build-error" id="build-error" role="alert" hidden></p>
     <p class="build-timing" id="build-timing" hidden></p>
   </div>
@@ -122,6 +140,7 @@
 <script src="../engine/roles.js"></script>
 <script src="../engine/aggregate.js"></script>
 <script src="../engine/layout.js"></script>
+<script src="../engine/reconcile.js"></script>
 <script src="../engine/index.js"></script>
 <script src="../render/format.js"></script>
 <script src="../render/themes.js"></script>

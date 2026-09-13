@@ -253,23 +253,31 @@
    * @param {HTMLElement} container mounted with position:relative and an explicit size (see updateCanvasSize)
    * @param {{rowCount:number, columns:Array}} analysis engine/index.js#analyzeTable result
    * @param {object} theme render/themes.js theme
-   * @param {{title?:string, subtitle?:string}} [meta]
-   * @param {{onPlaceOnSheet?: (spec:{canvas,widgets}) => Promise<{ok:boolean, shapeName?:string, error?:string}>}} [opts]
-   *   `onPlaceOnSheet` is omitted entirely in every host except the dialog
-   *   (addin/dashboard-dialog.js) — see renderPlaceButton's doc comment.
+   * @param {{title?:string, subtitle?:string, widgetConfig?:object}} [meta] `widgetConfig` — see engine/layout.js#buildSkeleton
+   * @param {object} [opts]
+   * @param {(spec:{canvas,widgets}) => Promise<{ok:boolean, shapeName?:string, error?:string}>} [opts.onPlaceOnSheet]
+   *   omitted entirely in every host except the dialog (addin/dashboard-dialog.js) — see renderPlaceButton's doc comment.
+   * @param {{activeFilters?:Object<string,string[]>, sort?:object}} [opts.initialState]
+   *   seeds `state` instead of the empty defaults — used when remounting to
+   *   apply a widgetConfig change, a Refresh, or a Change data range without
+   *   losing the filters/sort the user already had (see addin/dashboard-dialog.js).
+   *   `activeFilters` here is plain arrays (JSON-shaped), converted to Sets internally.
+   * @param {(state:object) => void} [opts.onStateChange] called after every `setState` with the live internal state object — the dialog forwards the relevant bits to the task pane so they survive a dialog close (see addin/dialog-messaging.js's STATE_UPDATE).
    * @returns {{setTheme(theme):void, getState():object, getLayoutSpec():object}}
    */
   function mount(container, analysis, theme, meta, opts) {
     const onPlaceOnSheet = opts && opts.onPlaceOnSheet;
+    const onStateChange = opts && opts.onStateChange;
+    const initial = (opts && opts.initialState) || {};
     const Engine = window.DashEngine; // browser-global; Node callers pass their own via a future param if ever needed
     const layoutSpec = Engine.buildLayoutSpec(analysis, meta);
     const columnsByName = Engine.Aggregate.byName(analysis.columns);
 
     const state = {
       theme,
-      activeFilters: {}, // column -> Set(values)
-      sort: null, // {key, dir}
-      openFilter: null, // column name whose popover is open
+      activeFilters: Object.fromEntries(Object.entries(initial.activeFilters || {}).map(([k, v]) => [k, new Set(v)])), // column -> Set(values)
+      sort: initial.sort || null, // {key, dir}
+      expandedFilters: new Set(), // column names currently showing all their value chips, not just the first MAX_CHIPS_SHOWN — not persisted, resets on remount
       page: 0,
     };
 
@@ -290,6 +298,7 @@
     function setState(patch) {
       Object.assign(state, patch);
       renderAll();
+      if (onStateChange) onStateChange(state);
     }
 
     // A chart region's click hands back the dimension column driving that
@@ -317,68 +326,68 @@
       return renderChartWidget(w, state.theme, addToFilter);
     }
 
+    const MAX_CHIPS_SHOWN = 8;
+
+    // One row per filterable dimension: a label followed by a value chip
+    // per distinct value (click toggles membership in that dimension's
+    // active set — multi-select, additive, same Set semantics chart-click
+    // filtering already uses via addToFilter). Beyond MAX_CHIPS_SHOWN
+    // values, the rest collapse behind a "+N more" chip that expands them
+    // in place (mountFrozen keeps its own separate, inert renderReadOnlyFilterBar —
+    // this function only ever runs in live mode).
     function renderFilterBar(w) {
       const c = state.theme.color;
-      const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', alignItems: 'center', gap: px(state.theme.spacing.sm), flexWrap: 'wrap' }) });
+      const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', overflow: 'hidden' }) });
 
       for (const f of w.filters) {
-        const active = state.activeFilters[f.column];
-        const activeArr = active ? [...active] : [];
-        const filled = activeArr.length > 0;
-        const label = !filled ? `${f.column}: All` : activeArr.length === 1 ? `${f.column}: ${activeArr[0]}` : `${f.column}: ${activeArr.length} selected`;
+        const active = state.activeFilters[f.column] || new Set();
+        const expanded = state.expandedFilters.has(f.column);
+        const shown = expanded ? f.values : f.values.slice(0, MAX_CHIPS_SHOWN);
+        const hiddenCount = f.values.length - shown.length;
 
-        const pillWrap = el('div', { class: 'dash-filter-pill', style: { position: 'relative' } });
-        const pill = el('button', {
-          type: 'button',
-          style: {
-            font: `12.5px ${state.theme.font.family}`, padding: '6px 13px', borderRadius: px(state.theme.radius.pill),
-            border: `1px solid ${filled ? c.accent : c.rule}`, background: filled ? c.accent : 'transparent',
-            color: filled ? c.panel : c.ink, cursor: 'pointer',
-          },
-          onclick: () => setState({ openFilter: state.openFilter === f.column ? null : f.column }),
-        }, label);
-        pillWrap.appendChild(pill);
+        const row = el('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } });
+        row.appendChild(el('span', { style: { font: `11.5px ${state.theme.font.family}`, color: c.muted, flex: 'none' } }, `${f.column}:`));
 
-        if (state.openFilter === f.column) pillWrap.appendChild(renderFilterPopover(f, active));
-        wrap.appendChild(pillWrap);
+        for (const v of shown) {
+          const isActive = active.has(v.value);
+          row.appendChild(el('button', {
+            type: 'button',
+            class: 'dash-filter-chip',
+            style: {
+              font: `12px ${state.theme.font.family}`, padding: '4px 11px', borderRadius: px(state.theme.radius.pill),
+              border: `1px solid ${isActive ? c.accent : c.rule}`, background: isActive ? c.accent : 'transparent',
+              color: isActive ? c.panel : c.ink, cursor: 'pointer',
+            },
+            onclick: () => {
+              const next = new Set(active);
+              if (next.has(v.value)) next.delete(v.value);
+              else next.add(v.value);
+              setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: next }) });
+            },
+          }, `${v.value} (${v.count})`));
+        }
+
+        if (hiddenCount > 0) {
+          row.appendChild(el('button', {
+            type: 'button',
+            style: { font: `12px ${state.theme.font.family}`, padding: '4px 8px', border: 'none', background: 'transparent', color: c.muted, cursor: 'pointer', textDecoration: 'underline' },
+            onclick: () => setState({ expandedFilters: new Set(state.expandedFilters).add(f.column) }),
+          }, `+${hiddenCount} more`));
+        } else if (expanded && f.values.length > MAX_CHIPS_SHOWN) {
+          row.appendChild(el('button', {
+            type: 'button',
+            style: { font: `12px ${state.theme.font.family}`, padding: '4px 8px', border: 'none', background: 'transparent', color: c.muted, cursor: 'pointer', textDecoration: 'underline' },
+            onclick: () => { const next = new Set(state.expandedFilters); next.delete(f.column); setState({ expandedFilters: next }); },
+          }, 'less'));
+        }
+
+        wrap.appendChild(row);
       }
 
       if (w.overflow && w.overflow.length) {
-        wrap.appendChild(el('span', { style: { font: `12.5px ${state.theme.font.family}`, color: c.muted } }, `+${w.overflow.length} more`));
+        wrap.appendChild(el('span', { style: { font: `12.5px ${state.theme.font.family}`, color: c.muted } }, `+${w.overflow.length} more filter${w.overflow.length === 1 ? '' : 's'} not shown`));
       }
       return wrap;
-    }
-
-    function renderFilterPopover(f, active) {
-      const c = state.theme.color;
-      const pop = el('div', {
-        style: {
-          position: 'absolute', top: '36px', left: 0, zIndex: 10, background: c.panel, border: `1px solid ${c.rule}`,
-          borderRadius: px(state.theme.radius.md), padding: px(state.theme.spacing.sm), minWidth: '160px',
-          boxShadow: '0 6px 20px rgba(0,0,0,.12)', font: `13px ${state.theme.font.family}`,
-        },
-      });
-      const allRow = el('label', { style: { display: 'flex', gap: '6px', padding: '3px 0', cursor: 'pointer', color: c.ink } }, [
-        el('input', { type: 'checkbox', checked: !active || active.size === 0 ? true : null, onchange: () => setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: new Set() }) }) }),
-        'All',
-      ]);
-      pop.appendChild(allRow);
-      for (const v of f.values) {
-        const checked = active && active.has(v.value);
-        pop.appendChild(el('label', { style: { display: 'flex', gap: '6px', padding: '3px 0', cursor: 'pointer', color: c.ink } }, [
-          el('input', {
-            type: 'checkbox', checked: checked ? true : null,
-            onchange: (e) => {
-              const next = new Set(active || []);
-              if (e.target.checked) next.add(v.value);
-              else next.delete(v.value);
-              setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: next }) });
-            },
-          }),
-          `${v.value} (${v.count})`,
-        ]));
-      }
-      return pop;
     }
 
     function renderTable(w) {
@@ -435,10 +444,6 @@
     }
 
     renderAll();
-
-    document.addEventListener('click', (e) => {
-      if (state.openFilter && !e.target.closest('.dash-filter-pill')) setState({ openFilter: null });
-    });
 
     return {
       setTheme(nextTheme) { state.theme = nextTheme; renderAll(); },

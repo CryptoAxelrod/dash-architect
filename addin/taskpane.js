@@ -1,26 +1,29 @@
 /*
- * Dash Architect task pane — the control panel: range picking, reading the
- * selected range, and reacting to what the dialog reports back. The actual
- * interactive dashboard (render/dom.js#mount / #mountFrozen) lives in its
- * own window, addin/dashboard-dialog.html, opened via
+ * Dash Architect task pane — the control panel: range/table picking,
+ * reading the selected source, and reacting to what the dialog reports
+ * back. The actual interactive dashboard (render/dom.js#mount / #mountFrozen)
+ * lives in its own window, addin/dashboard-dialog.html, opened via
  * Office.context.ui.displayDialogAsync — this pane and that dialog talk
- * over addin/dialog-messaging.js's chunked JSON channel (see the "dashboard
- * dialog" section below). This file:
- *   1. reads the selected range (addin/excel-io.js, chunked, format
- *      sampled) and feeds it to engine.analyzeTable exactly like the CSV
- *      path does,
- *   2. opens the dialog and streams it {analysis, meta} so it can mount the
- *      live dashboard itself,
- *   3. on the dialog's "Place image on sheet" message: rasterizes the
- *      dialog's current (already filtered/sorted) spec (render/share.js),
- *      inserts the PNG via worksheet.shapes.addImage, and saves a
- *      self-contained snapshot (engine/layout.js#buildStorageSnapshot) +
- *      the column mapping into workbook.settings, keyed to the picture's
- *      name (addin/dashboard-io.js) — then messages the result back,
- *   4. reopens a saved dashboard — via the reliable "Dashboards in this
- *      workbook" list, or a best-effort guess when the selection changes
- *      to something that isn't a normal cell range — in the same dialog,
- *      frozen/no-recompute (render/dom.js#mountFrozen).
+ * over addin/dialog-messaging.js's chunked JSON channel. This file:
+ *   1. reads the selected source (addin/excel-io.js, chunked, format
+ *      sampled) — a plain range by address, or an Excel Table by id if the
+ *      selection falls entirely inside one — and feeds it to
+ *      engine.analyzeTable exactly like the CSV path does,
+ *   2. if there are more than 6 columns, shows a mapping screen so the user
+ *      can review/correct roles before anything is built (CLAUDE.md §7:
+ *      those picks persist across every later Refresh/Change data range,
+ *      layered back onto fresh auto-classification, never lost to it),
+ *   3. opens the dialog and streams it {analysis, meta, seedState?} so it
+ *      can mount the live dashboard itself,
+ *   4. on the dialog's REFRESH_REQUEST / CHANGE_RANGE_REQUEST / PLACE_ON_SHEET
+ *      messages: re-reads the source / lets the user pick a different one /
+ *      rasterizes+places the image, respectively — see the handlers below,
+ *   5. remembers the dialog's live state (STATE_UPDATE) so "Open dashboard"
+ *      can reopen it without losing filters/sort/theme/settings, and
+ *   6. reopens a saved (placed) dashboard — via the reliable "Dashboards in
+ *      this workbook" list, or a best-effort guess when the selection
+ *      changes to something that isn't a normal cell range — in the same
+ *      dialog, frozen/no-recompute (render/dom.js#mountFrozen).
  *
  * Runs two ways, chosen once at startup by `host` below:
  *   - inside Excel: every step above is real Office.js.
@@ -35,20 +38,25 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const plural = (n, one, many) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
   const els = {};
   const state = {
     excel: false,
     picking: false,
-    range: null, // {address, rows, cols}
+    pickingFor: 'generate', // 'generate' | 'change-range' — which flow finishPicking()/the CTA click should feed into
+    range: null, // live {address, rows, cols} while picking, for the address/size display
     beforePick: null,
     busy: false,
-    analysis: null,
-    sourceAddress: null,
+    source: null, // {kind:'range', address, headers} | {kind:'table', id, name}
+    analysis: null, // effective (override-applied) analysis of the currently open/last-open dashboard
+    roleOverrides: null, // {colName: {role, chartEligible}} | null — from the mapping screen, reapplied on every Refresh
     title: null,
+    lastDialogState: null, // {activeFilters, sort, theme, widgetConfig} from the dialog's STATE_UPDATE — survives the dialog closing
     result: null,
+    pendingChangeRange: null, // {dlg, raw, requestId} while pickingFor === 'change-range'
+    sourceBeforeChangeRange: null,
+    rangeBeforeChangeRange: null,
   };
   let host = null;
   let currentDialog = null; // the dashboard-dialog.html window currently open, if any — see openDialog()
@@ -65,6 +73,39 @@
 
   /* ---------- hosts: real Excel vs. in-browser preview ---------- */
 
+  // The only Office.js-touching helper not tied to a single host method:
+  // resolves a stored `source` descriptor back into a live Excel.Range,
+  // re-reading it fresh every time (never the address/table captured once
+  // at pick time) so Refresh naturally picks up a grown Excel Table and a
+  // renamed table/sheet doesn't just silently break.
+  async function resolveSourceRange(ctx, source) {
+    if (source.kind === 'table') {
+      const t = ctx.workbook.tables.getItemOrNullObject(source.id);
+      t.load('name');
+      await ctx.sync();
+      if (t.isNullObject) throw new Error(`Table "${source.name}" no longer exists — it may have been deleted.`);
+      source.name = t.name; // table.id survives a rename; refresh the cached display name
+      return t.getRange();
+    }
+    const { sheet: sheetName, cells } = splitAddress(source.address);
+    const sheet = ctx.workbook.worksheets.getItemOrNullObject(sheetName);
+    await ctx.sync();
+    if (sheet.isNullObject) throw new Error(`Sheet "${sheetName}" no longer exists — it may have been deleted or renamed.`);
+    return sheet.getRange(cells);
+  }
+
+  // For a plain range (not a table): the address alone doesn't know if rows
+  // were inserted/deleted above it since it was picked — comparing the
+  // freshly-read header row against what was captured at pick time turns a
+  // silent read of shifted data into a clear error instead.
+  function checkHeadersUnchanged(source, headers) {
+    if (source.kind !== 'range' || !source.headers) return;
+    const same = headers.length === source.headers.length && headers.every((h, i) => h === source.headers[i]);
+    if (!same) {
+      throw new Error(`Headers in ${source.address} have changed — the range may have shifted (rows inserted/deleted above it). Pick the range again.`);
+    }
+  }
+
   const excelHost = {
     async readSelectionInfo() {
       try {
@@ -78,10 +119,45 @@
         return null; // selection is a shape/chart/multi-area, not a plain range
       }
     },
-    async readRangeForEngine() {
+    // Only called once, when the user confirms a pick ("Done") — not on
+    // every DocumentSelectionChanged tick, which only needs the cheap
+    // readSelectionInfo above. Detects whether the confirmed selection
+    // falls entirely inside one Excel Table (geometry, not by any
+    // dedicated "table at range" API — see SPEC.md).
+    async detectSource() {
       return Excel.run(async (ctx) => {
         const range = ctx.workbook.getSelectedRange();
-        return window.DashAddinExcelIo.readRangeForEngine(ctx, range);
+        range.load('address,rowIndex,columnIndex,rowCount,columnCount');
+        const tables = range.worksheet.tables;
+        tables.load('items/name,items/id');
+        await ctx.sync();
+
+        const tableGeoms = tables.items.map((t) => {
+          const r = t.getRange();
+          r.load('rowIndex,columnIndex,rowCount,columnCount');
+          return { table: t, r };
+        });
+        await ctx.sync();
+
+        const hit = tableGeoms.find(({ r }) =>
+          range.rowIndex >= r.rowIndex && range.columnIndex >= r.columnIndex &&
+          range.rowIndex + range.rowCount <= r.rowIndex + r.rowCount &&
+          range.columnIndex + range.columnCount <= r.columnIndex + r.columnCount
+        );
+        if (hit) return { kind: 'table', id: hit.table.id, name: hit.table.name };
+
+        const headerRow = range.getCell(0, 0).getResizedRange(0, range.columnCount - 1);
+        headerRow.load('values');
+        await ctx.sync();
+        return { kind: 'range', address: range.address, headers: headerRow.values[0].map((v) => (v == null ? '' : String(v))) };
+      });
+    },
+    async readRangeForEngine(source) {
+      return Excel.run(async (ctx) => {
+        const range = await resolveSourceRange(ctx, source);
+        const result = await window.DashAddinExcelIo.readRangeForEngine(ctx, range);
+        checkHeadersUnchanged(source, result.headers);
+        return result;
       });
     },
     async placeDashboard(args) {
@@ -113,19 +189,29 @@
   // file header comment. `previewDashboards` stands in for
   // workbook.settings; DashboardIo's naming/payload helpers are pure and
   // used as-is, so this is the same code path minus the Office.js calls.
+  // No table simulation here — the bundled fixture is always a plain range.
   const previewDashboards = [];
   const PREVIEW_ADDRESS = "'Store sales'!A1:J901";
+
+  async function readPreviewFixture() {
+    const text = await fetch('../fixtures/01_sales_timeseries.csv').then((r) => r.text());
+    return window.DashEngineCsv.parseCsv(text).rows;
+  }
 
   const previewHost = {
     async readSelectionInfo() {
       return { address: PREVIEW_ADDRESS, rows: 901, cols: 10 };
     },
-    async readRangeForEngine() {
+    async detectSource() {
+      const rows = await readPreviewFixture();
+      return { kind: 'range', address: PREVIEW_ADDRESS, headers: rows[0] };
+    },
+    async readRangeForEngine(source) {
       const t0 = performance.now();
-      const text = await fetch('../fixtures/01_sales_timeseries.csv').then((r) => r.text());
-      const { rows } = window.DashEngineCsv.parseCsv(text);
+      const rows = await readPreviewFixture();
       const t1 = performance.now();
       const [headers, ...dataRows] = rows;
+      checkHeadersUnchanged(source, headers);
       return { headers, dataRows, totalRows: rows.length, cols: headers.length, timing: { valuesMs: Math.round(t1 - t0), formatMs: 0, totalMs: Math.round(t1 - t0) } };
     },
     async placeDashboard(args) {
@@ -159,14 +245,17 @@
 
   function init() {
     Object.assign(els, {
-      showList: $('show-list'), viewSetup: $('view-setup'), viewList: $('view-list'),
+      showList: $('show-list'), viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
+      tableBadge: $('ref-table-badge'),
       hint: $('ref-hint'), meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
       summary: $('summary'), build: $('build'), buildIdle: $('build-idle'), buildOpen: $('build-open'), buildDone: $('build-done'),
       generate: $('generate'), ctaLabel: $('cta-label'), ctaFill: $('cta-fill'), buildError: $('build-error'), buildTiming: $('build-timing'),
+      reopenRow: $('reopen-row'), reopenDashboard: $('reopen-dashboard'), newDashboard: $('new-dashboard'), cancelChangeRange: $('cancel-change-range'),
       openStartOver: $('open-start-over'),
       doneSub: $('done-sub'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
       listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
+      mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
       debugPanel: $('debug-panel'), debugLog: $('debug-log'),
     });
 
@@ -174,7 +263,10 @@
     els.refedit.addEventListener('click', () => { if (!state.picking && !state.busy) startPicking(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.picking) cancelPicking(); });
 
-    els.generate.addEventListener('click', generate);
+    els.generate.addEventListener('click', () => { if (state.pickingFor === 'change-range') completeChangeRangePicking(); else generate(); });
+    els.reopenDashboard.addEventListener('click', reopenDashboard);
+    els.newDashboard.addEventListener('click', startNewDashboard);
+    els.cancelChangeRange.addEventListener('click', cancelChangeRangePicking);
     els.openStartOver.addEventListener('click', startOver);
     els.doneStartOver.addEventListener('click', startOver);
     els.doneViewList.addEventListener('click', showList);
@@ -213,8 +305,16 @@
     const r = await host.readSelectionInfo();
     state.picking = false;
     els.hint.hidden = true;
-    if (r) setRange(r);
-    else restoreRange(state.beforePick);
+    if (!r) { restoreRange(state.beforePick); return; }
+    setRange(r);
+    try {
+      state.source = await host.detectSource();
+      updateSourceBadge();
+      renderProgress(); // sourceLabel() only has something to show once state.source resolves, above
+    } catch (err) {
+      els.buildError.textContent = `Could not read the selection: ${err && err.message ? err.message : String(err)}`;
+      els.buildError.hidden = false;
+    }
   }
 
   function cancelPicking() {
@@ -226,12 +326,14 @@
   function restoreRange(r) {
     if (r) { setRange(r); return; }
     state.range = null;
+    state.source = null;
     els.refedit.dataset.state = 'empty';
     els.refBtn.textContent = 'Select range';
     els.placeholder.hidden = false;
     els.cells.hidden = true;
     els.sheet.hidden = true;
     els.meta.hidden = true;
+    updateSourceBadge();
     renderProgress();
   }
 
@@ -263,12 +365,45 @@
     renderProgress();
   }
 
+  // Shown only after "Done" resolves detectSource() — during the drag/pick
+  // itself the badge doesn't know yet whether this is a table (see
+  // excelHost.detectSource's doc comment on why that check isn't live).
+  function updateSourceBadge() {
+    const isTable = state.source && state.source.kind === 'table';
+    els.tableBadge.hidden = !isTable;
+    if (isTable) els.tableBadge.textContent = `Table: ${state.source.name}`;
+    els.cells.hidden = isTable;
+  }
+
+  function sourceLabel(source) {
+    const s = source || state.source;
+    if (!s) return '';
+    return s.kind === 'table' ? `Table: ${s.name}` : s.address;
+  }
+
+  function sourceTitle() {
+    if (state.source && state.source.kind === 'table') return state.source.name;
+    return (state.range && splitAddress(state.range.address).sheet) || 'Dashboard';
+  }
+
   function renderProgress() {
     document.querySelector('#view-setup .step').classList.toggle('done', !!state.range);
-    els.generate.disabled = !state.range;
     els.summary.innerHTML = state.range
-      ? `Ready to generate from <strong>${splitAddress(state.range.address).cells}</strong>`
+      ? `Ready to generate from <strong>${sourceLabel()}</strong>`
       : 'Choose data above';
+    syncIdleFooter();
+  }
+
+  /* ---------- footer: idle sub-states (fresh / has-dashboard / picking a
+     change-range source) ---------- */
+  function syncIdleFooter() {
+    const changeRangeMode = state.pickingFor === 'change-range';
+    const hasDashboard = !!state.analysis;
+    els.generate.hidden = hasDashboard && !changeRangeMode;
+    els.reopenRow.hidden = !hasDashboard || changeRangeMode;
+    els.cancelChangeRange.hidden = !changeRangeMode;
+    els.ctaLabel.textContent = changeRangeMode ? 'Use this range' : 'Generate dashboard';
+    els.generate.disabled = !state.range;
   }
 
   /* ---------- debug (temporary) — surfaces dialog/messaging lifecycle
@@ -280,9 +415,77 @@
     els.debugLog.textContent = els.debugLog.textContent ? `${els.debugLog.textContent}\n${line}` : line;
   }
 
+  /* ---------- mapping screen (>6 columns) ---------- */
+  const ROLE_OPTIONS = [
+    ['measure', 'Measure'],
+    ['dimension', 'Category'],
+    ['dimension_filter', 'Filter only'],
+    ['time', 'Date'],
+    ['text', 'Text (table only)'],
+    ['excluded', "Don't use"],
+  ];
+
+  function roleOptionFor(decision) {
+    if (decision.role === 'dimension') return decision.chartEligible === false ? 'dimension_filter' : 'dimension';
+    return decision.role;
+  }
+
+  // Shows every column with a role <select> pre-filled from auto-
+  // classification; `onConfirm(finalAnalysis, overrides)` fires once the
+  // user reviews and clicks Generate. `overrides` covers every column (not
+  // just changed ones) — engine/index.js#applyRoleOverrides no-ops for any
+  // that already match what auto-classification decided.
+  function showMappingScreen(analysis, onConfirm, onCancel) {
+    showView('mapping');
+    els.mappingList.innerHTML = '';
+    const rows = analysis.columns.map((col) => {
+      const row = document.createElement('div');
+      row.className = 'mapping-row';
+      const name = document.createElement('span');
+      name.className = 'mapping-name';
+      name.textContent = col.name;
+      const select = document.createElement('select');
+      select.className = 'mapping-select';
+      for (const [value, label] of ROLE_OPTIONS) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        select.appendChild(opt);
+      }
+      select.value = roleOptionFor(col.decision);
+      row.append(name, select);
+      els.mappingList.appendChild(row);
+      return { name: col.name, select };
+    });
+
+    function onGenerateClick() {
+      const overrides = {};
+      for (const { name, select } of rows) {
+        overrides[name] = select.value === 'dimension_filter'
+          ? { role: 'dimension', chartEligible: false }
+          : select.value === 'dimension'
+            ? { role: 'dimension', chartEligible: true }
+            : { role: select.value };
+      }
+      cleanup();
+      onConfirm(window.DashEngine.applyRoleOverrides(analysis, overrides), overrides);
+    }
+    function onCancelClick() {
+      cleanup();
+      if (onCancel) onCancel();
+      else showView('setup');
+    }
+    function cleanup() {
+      els.mappingGenerate.removeEventListener('click', onGenerateClick);
+      els.mappingCancel.removeEventListener('click', onCancelClick);
+    }
+    els.mappingGenerate.addEventListener('click', onGenerateClick);
+    els.mappingCancel.addEventListener('click', onCancelClick);
+  }
+
   /* ---------- generate ---------- */
   async function generate() {
-    if (state.busy || !state.range) return;
+    if (state.busy || !state.range || state.pickingFor === 'change-range') return;
     state.busy = true;
     document.body.classList.add('busy');
     els.buildError.hidden = true;
@@ -291,25 +494,42 @@
 
     try {
       setCta('Reading your data…', 33);
-      const { headers, dataRows, timing, totalRows } = await host.readRangeForEngine();
+      const { headers, dataRows, timing, totalRows } = await host.readRangeForEngine(state.source);
 
       setCta('Classifying columns…', 66);
-      const analysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
-
-      setCta('Opening dashboard window…', 100);
-      const title = splitAddress(state.range.address).sheet || 'Dashboard';
-
-      state.analysis = analysis;
-      state.sourceAddress = state.range.address;
-      state.title = title;
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      state.title = sourceTitle();
 
       if (timing) {
         els.buildTiming.hidden = false;
         els.buildTiming.textContent = `Read ${totalRows.toLocaleString('en-US')} rows in ${timing.totalMs}ms (values ${timing.valuesMs}ms, format sample ${timing.formatMs}ms)`;
       }
 
-      await openLiveDashboard();
-      setFooterState('open');
+      // Called either directly below (≤6 columns) — inside this try/catch —
+      // or later from the mapping screen's own Generate click, long after
+      // this function has already returned via `finally`; it needs its own
+      // error handling either way, or a dialog-open failure from the
+      // mapping-screen path would be an unhandled rejection with no visible error.
+      const proceed = async (analysis, overrides) => {
+        try {
+          state.roleOverrides = overrides || null;
+          state.analysis = analysis;
+          state.lastDialogState = null;
+          await openLiveDashboard();
+          setFooterState('open');
+        } catch (err) {
+          showView('setup');
+          setFooterState('idle');
+          els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
+          els.buildError.hidden = false;
+        }
+      };
+
+      if (rawAnalysis.columns.length > 6) {
+        showMappingScreen(rawAnalysis, proceed);
+      } else {
+        await proceed(rawAnalysis, null);
+      }
     } catch (err) {
       els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
       els.buildError.hidden = false;
@@ -318,7 +538,7 @@
       document.body.classList.remove('busy');
       els.ctaFill.style.transitionDuration = '0ms';
       els.ctaFill.style.width = '0';
-      els.ctaLabel.textContent = 'Generate dashboard';
+      syncIdleFooter();
     }
   }
 
@@ -327,12 +547,35 @@
     els.ctaFill.style.width = `${pct}%`;
   }
 
+  async function reopenDashboard() {
+    if (state.busy || !state.analysis) return;
+    state.busy = true;
+    try {
+      await openLiveDashboard();
+      setFooterState('open');
+    } catch (err) {
+      els.buildError.textContent = `Could not open the dashboard: ${err && err.message ? err.message : String(err)}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  function startNewDashboard() {
+    state.analysis = null;
+    state.roleOverrides = null;
+    state.lastDialogState = null;
+    state.result = null;
+    setFooterState('idle');
+    syncIdleFooter();
+  }
+
   /* ---------- dashboard dialog: opens the interactive dashboard in its own
      window (Office.context.ui.displayDialogAsync) instead of the cramped
      task pane. The dialog can't reach Excel itself, so all it gets is JSON
-     over addin/dialog-messaging.js's chunked channel, and the one thing it
-     needs Excel for — placing the image — it asks this pane to do. See
-     SPEC.md for the full protocol writeup. ---------- */
+     over addin/dialog-messaging.js's chunked channel, and the things it
+     needs Excel for — placing the image, refreshing, changing the source —
+     it asks this pane to do. See SPEC.md for the full protocol writeup. ---------- */
 
   function dialogUrl() {
     return new URL('dashboard-dialog.html', location.href).href;
@@ -350,9 +593,9 @@
   // Mimics the native dialog object's shape (messageChild/addEventHandler/
   // close) over window.open + postMessage, so previewHost can exercise the
   // exact same chunking/handshake/place-on-sheet code paths outside Excel.
-  // The dialog page's own "Place image on sheet" button always goes through
-  // this message round trip too (never a direct local call) — otherwise a
-  // browser-only shortcut would stop proving anything about the real path.
+  // The dialog page's own buttons always go through this message round
+  // trip too (never a direct local call) — otherwise a browser-only
+  // shortcut would stop proving anything about the real path.
   function openDialogPreview(url) {
     const win = window.open(url, 'dash-dialog', 'width=1200,height=850');
     const handlers = {};
@@ -393,6 +636,12 @@
     logDebug(`dialog: sent ${data.mode} data (request ${requestId}).`);
   }
 
+  // Opens a fresh dialog for state.analysis, wires every message kind the
+  // dialog can send throughout its lifetime (one combined handler — see the
+  // comment on why this isn't several separate addEventHandler calls), and
+  // streams the initial hydration once the dialog signals it's ready.
+  // `seedState` (state.lastDialogState, from a prior close) is optional —
+  // omit it for a genuinely fresh dashboard.
   async function openLiveDashboard() {
     const dlg = await openDialog(dialogUrl());
     logDebug('dialog: opened, waiting for ready…');
@@ -401,9 +650,12 @@
     let resolveReady;
     const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
     const readyReceiver = Msg.createChunkReceiver(Msg.KIND.READY, () => resolveReady());
-    const placeReceiver = Msg.createChunkReceiver(Msg.KIND.PLACE_ON_SHEET, (spec, requestId) => handlePlaceOnSheet(dlg, spec, requestId));
+    const placeReceiver = Msg.createChunkReceiver(Msg.KIND.PLACE_ON_SHEET, (spec, id) => handlePlaceOnSheet(dlg, spec, id));
+    const stateReceiver = Msg.createChunkReceiver(Msg.KIND.STATE_UPDATE, (raw) => { state.lastDialogState = raw; });
+    const refreshReceiver = Msg.createChunkReceiver(Msg.KIND.REFRESH_REQUEST, (raw, id) => handleRefreshRequest(dlg, raw, id));
+    const changeRangeReceiver = Msg.createChunkReceiver(Msg.KIND.CHANGE_RANGE_REQUEST, (raw, id) => handleChangeRangeRequest(dlg, raw, id));
     dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
-      readyReceiver(arg.message) || placeReceiver(arg.message);
+      readyReceiver(arg.message) || placeReceiver(arg.message) || stateReceiver(arg.message) || refreshReceiver(arg.message) || changeRangeReceiver(arg.message);
     });
 
     await readyPromise;
@@ -412,11 +664,13 @@
       mode: 'live',
       analysis: state.analysis,
       meta: { title: state.title, subtitle: `${state.analysis.rowCount.toLocaleString('en-US')} rows` },
+      seedState: state.lastDialogState || null,
+      source: sourceLabel(),
     });
   }
 
   async function openRestoredDashboard(d) {
-    showView('setup');
+    await showList();
     try {
       const dlg = await openDialog(dialogUrl());
       logDebug('dialog: opened (restored), waiting for ready…');
@@ -434,11 +688,10 @@
     }
   }
 
-  // Runs the actual Excel work for "Place image on sheet" — unchanged from
-  // before the dialog existed, apart from taking the already-resolved
-  // {canvas, widgets, theme} the dialog sends instead of reading a local
-  // mount controller (that controller now lives in the dialog's own window,
-  // a separate JS realm this pane has no access to).
+  // Runs the actual Excel work for "Place image on sheet" — takes the
+  // already-resolved {canvas, widgets, theme} the dialog sends; the mount
+  // controller that produced it lives in the dialog's own window, a
+  // separate JS realm this pane has no access to.
   async function placeOnSheet(spec) {
     try {
       const theme = window.DashRenderThemes.THEMES[spec.theme || 'light'];
@@ -450,7 +703,7 @@
       const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation }));
 
       const { shapeName } = await host.placeDashboard({
-        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: state.sourceAddress, title: state.title,
+        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), title: state.title,
       });
       return { ok: true, shapeName };
     } catch (err) {
@@ -472,6 +725,105 @@
       logDebug(`place-on-sheet: placed as "${result.shapeName}".`);
     } else {
       logDebug(`place-on-sheet: failed — ${result.error}`);
+    }
+  }
+
+  // Re-reads state.source fresh and reapplies the saved role mapping
+  // (state.roleOverrides) — never re-prompts the mapping screen; that's
+  // reserved for a genuinely new source (Change data range). The dialog
+  // reconciles/diffs on its side once it gets this.
+  async function handleRefreshRequest(dlg, raw, requestId) {
+    logDebug(`refresh: request received (${requestId}).`);
+    const Msg = window.DashDialogMessaging;
+    try {
+      const { headers, dataRows } = await host.readRangeForEngine(state.source);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      const analysis = window.DashEngine.applyRoleOverrides(rawAnalysis, state.roleOverrides);
+      state.analysis = analysis;
+      const meta = { title: state.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+      Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.REFRESH_RESULT, { ok: true, analysis, meta, seedState: raw, source: sourceLabel() }, null, requestId);
+      logDebug('refresh: sent fresh data.');
+    } catch (err) {
+      Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.REFRESH_RESULT, { ok: false, error: err && err.message ? err.message : String(err) }, null, requestId);
+      logDebug(`refresh: failed — ${err && err.message ? err.message : err}`);
+    }
+  }
+
+  // The dialog asked to pick a different source. We can't do that
+  // synchronously — hand control to the normal setup view and wait for the
+  // user to finish picking and click "Use this range" (or cancel).
+  function handleChangeRangeRequest(dlg, raw, requestId) {
+    logDebug(`change-range: request received (${requestId}).`);
+    state.pendingChangeRange = { dlg, raw, requestId };
+    state.sourceBeforeChangeRange = state.source;
+    state.rangeBeforeChangeRange = state.range;
+    state.pickingFor = 'change-range';
+    showView('setup');
+    setFooterState('idle'); // #build-idle (holding the relabeled Generate/Cancel buttons) must be the visible footer section, not whatever it was mid-dialog (e.g. 'open')
+  }
+
+  function cancelChangeRangePicking() {
+    const pending = state.pendingChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingChangeRange = null;
+    restoreRange(state.rangeBeforeChangeRange);
+    state.source = state.sourceBeforeChangeRange;
+    updateSourceBadge();
+    setFooterState('open'); // dialog stays open and untouched — back to the normal "dashboard open" footer
+    if (pending) {
+      window.DashDialogMessaging.sendChunked((str) => pending.dlg.messageChild(str), window.DashDialogMessaging.KIND.CHANGE_RANGE_RESULT, { ok: false, error: 'cancelled' }, null, pending.requestId);
+    }
+  }
+
+  // Structure match (same column names as the dashboard currently open in
+  // the dialog) decides two things at once: whether the saved role mapping
+  // carries over, and whether the dialog's filters/sort/settings can be
+  // reconciled instead of reset — see engine/reconcile.js and SPEC.md.
+  async function completeChangeRangePicking() {
+    const pending = state.pendingChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingChangeRange = null;
+    syncIdleFooter();
+    if (!pending) return;
+
+    const Msg = window.DashDialogMessaging;
+    const respond = (payload) => Msg.sendChunked((str) => pending.dlg.messageChild(str), Msg.KIND.CHANGE_RANGE_RESULT, payload, null, pending.requestId);
+
+    try {
+      const { headers, dataRows } = await host.readRangeForEngine(state.source);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      const oldNames = state.analysis.columns.map((c) => c.name);
+      const newNames = rawAnalysis.columns.map((c) => c.name);
+      const matches = window.DashEngine.Reconcile.columnsStructureMatches(oldNames, newNames);
+      const overridesToCarry = matches ? state.roleOverrides : null;
+      if (!matches) state.roleOverrides = null;
+
+      const finish = (finalAnalysis, overrides) => {
+        state.analysis = finalAnalysis;
+        state.roleOverrides = overrides !== undefined ? overrides : overridesToCarry;
+        state.title = sourceTitle();
+        const meta = { title: state.title, subtitle: `${finalAnalysis.rowCount.toLocaleString('en-US')} rows` };
+        respond({ ok: true, analysis: finalAnalysis, meta, seedState: matches ? pending.raw : null, structureReset: !matches, source: sourceLabel() });
+        showView('setup');
+        setFooterState('open'); // the dialog is still open with the (now updated) dashboard
+      };
+
+      const withOverrides = window.DashEngine.applyRoleOverrides(rawAnalysis, overridesToCarry);
+      if (!matches && withOverrides.columns.length > 6) {
+        showMappingScreen(withOverrides, finish, () => {
+          // the dialog is still waiting on this request — a plain
+          // showView('setup') here would strand it forever
+          respond({ ok: false, error: 'cancelled' });
+          showView('setup');
+          setFooterState('open');
+        });
+      } else {
+        finish(withOverrides, overridesToCarry);
+      }
+    } catch (err) {
+      logDebug(`change-range: failed — ${err && err.message ? err.message : err}`);
+      respond({ ok: false, error: err && err.message ? err.message : String(err) });
+      setFooterState('open'); // the dialog is untouched and still open — its own banner shows the failure, no need to strand the pane on the idle/setup footer
     }
   }
 
@@ -533,22 +885,26 @@
   function showView(name) {
     els.viewSetup.hidden = name !== 'setup';
     els.viewList.hidden = name !== 'list';
-    els.build.hidden = name === 'list';
+    els.viewMapping.hidden = name !== 'mapping';
+    els.build.hidden = name === 'list' || name === 'mapping';
   }
 
   function setFooterState(s) {
     els.buildIdle.hidden = s !== 'idle';
     els.buildOpen.hidden = s !== 'open';
     els.buildDone.hidden = s !== 'done';
+    syncIdleFooter();
   }
 
   function startOver() {
     state.picking = false;
+    state.pickingFor = 'generate';
     state.range = null;
+    state.source = null;
     state.beforePick = null;
     state.analysis = null;
-    state.sourceAddress = null;
-    state.title = null;
+    state.roleOverrides = null;
+    state.lastDialogState = null;
     state.result = null;
     if (currentDialog) {
       try { currentDialog.close(); } catch (e) { /* already gone */ }

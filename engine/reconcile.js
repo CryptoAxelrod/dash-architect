@@ -1,0 +1,91 @@
+/*
+ * Pure helpers for carrying dashboard UI state (filters/sort/KPI picks)
+ * across a change of underlying data — a Refresh (same source, newer rows)
+ * or a Change data range onto a different source. Deliberately dumb about
+ * *why* the data changed; the caller decides whether to use these at all.
+ *
+ * Structure comparison is by column NAME only (see SPEC.md) — `role` is
+ * excluded on purpose: it can legitimately differ between two analyses of
+ * the same shape (a user override) without the underlying report having
+ * changed, and `profile.valueType` is exactly as volatile (one stray text
+ * cell in an otherwise-numeric column of new rows flips it) — neither is a
+ * safe signal for "should I throw away the user's filters." A per-column
+ * valueType note for the UI (informational only) does NOT go through here.
+ *
+ * Pure JS, no dependencies, no Office.js/Excel/DOM — see CLAUDE.md.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.DashEngineReconcile = factory();
+  }
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /** @returns {boolean} true iff both column-name sets are identical (order-independent) */
+  function columnsStructureMatches(oldNames, newNames) {
+    if (oldNames.length !== newNames.length) return false;
+    const b = new Set(newNames);
+    if (b.size !== oldNames.length) return false;
+    return oldNames.every((n) => b.has(n));
+  }
+
+  /**
+   * Adapts a previously-serialized dialog state ({activeFilters, sort,
+   * theme, widgetConfig} — see addin/dialog-messaging.js) to a (possibly
+   * different) analysis: drops filter values and sort/KPI references to
+   * columns that no longer exist or no longer play the required role.
+   * Never throws, never invents new state — a name simply absent from
+   * `rawState` stays absent.
+   *
+   * @param {{columns:Array}} analysis the analysis the caller is about to mount/remount with
+   * @param {{activeFilters?, sort?, theme?, widgetConfig?}} rawState
+   * @returns {{activeFilters, sort, theme, widgetConfig}|null} null if rawState itself was null/undefined
+   */
+  function reconcileDashboardState(analysis, rawState) {
+    if (!rawState) return null;
+    const byName = new Map(analysis.columns.map((c) => [c.name, c]));
+
+    const activeFilters = {};
+    for (const [col, rawValues] of Object.entries(rawState.activeFilters || {})) {
+      const column = byName.get(col);
+      if (!column || column.decision.role !== 'dimension' || !Array.isArray(rawValues) || !rawValues.length) continue;
+      const stillPresent = new Set(column.values);
+      const kept = rawValues.filter((v) => stillPresent.has(v));
+      if (kept.length) activeFilters[col] = kept;
+    }
+
+    let sort = rawState.sort || null;
+    if (sort && !byName.has(sort.key)) sort = null;
+
+    let widgetConfig = rawState.widgetConfig || null;
+    if (widgetConfig && Array.isArray(widgetConfig.enabledKpis)) {
+      const kept = widgetConfig.enabledKpis.filter((name) => {
+        const c = byName.get(name);
+        return c && c.decision.role === 'measure';
+      });
+      widgetConfig = Object.assign({}, widgetConfig, { enabledKpis: kept.length ? kept : null });
+    }
+
+    return { activeFilters, sort, theme: rawState.theme || 'light', widgetConfig };
+  }
+
+  /**
+   * Per-column value-type drift between two analyses, for shared column
+   * names only — informational (a UI banner), never a basis for resetting
+   * anything. See the module doc comment for why.
+   * @returns {string[]} names of columns whose profile.valueType differs
+   */
+  function diffValueTypes(oldAnalysis, newAnalysis) {
+    const oldByName = new Map(oldAnalysis.columns.map((c) => [c.name, c.profile.valueType]));
+    const changed = [];
+    for (const col of newAnalysis.columns) {
+      const oldType = oldByName.get(col.name);
+      if (oldType != null && oldType !== col.profile.valueType) changed.push(col.name);
+    }
+    return changed;
+  }
+
+  return { columnsStructureMatches, reconcileDashboardState, diffValueTypes };
+});

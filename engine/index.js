@@ -12,7 +12,8 @@
       require('./profile'),
       require('./roles'),
       require('./aggregate'),
-      require('./layout')
+      require('./layout'),
+      require('./reconcile')
     );
   } else {
     root.DashEngine = factory(
@@ -21,11 +22,53 @@
       root.DashEngineProfile,
       root.DashEngineRoles,
       root.DashEngineAggregate,
-      root.DashEngineLayout
+      root.DashEngineLayout,
+      root.DashEngineReconcile
     );
   }
-})(typeof self !== 'undefined' ? self : this, function (Csv, Values, Profile, Roles, Aggregate, Layout) {
+})(typeof self !== 'undefined' ? self : this, function (Csv, Values, Profile, Roles, Aggregate, Layout, Reconcile) {
   'use strict';
+
+  /**
+   * Applies user-picked roles from the mapping screen on top of a fresh
+   * classification. Only `decision` changes — `profile`/`values` (the raw
+   * per-row data) are untouched, so this can run after every `analyzeTable`
+   * call (initial generate, Refresh, Change data range) without needing
+   * `engine/roles.js` to know overrides exist at all — see CLAUDE.md §7.
+   *
+   * A column whose override role equals what auto-classification already
+   * decided keeps its original (richer) decision — only `dimension`'s
+   * `chartEligible` gets reconciled in that case. A column whose override
+   * genuinely changes the role gets a fresh, minimal decision built for
+   * that role; `needsWeightBase`/`weightBase` etc. from the old role are
+   * dropped rather than carried over stale.
+   *
+   * @param {{columns:Array}} analysis
+   * @param {Object<string,{role:string, chartEligible?:boolean}>} [overrides] column name -> chosen role
+   */
+  function applyRoleOverrides(analysis, overrides) {
+    if (!overrides) return analysis;
+    const columns = analysis.columns.map((col) => {
+      const ov = overrides[col.name];
+      if (!ov) return col;
+      const eligible = ov.chartEligible !== false;
+      if (col.decision.role === ov.role) {
+        if (col.decision.role !== 'dimension') return col;
+        if ((col.decision.chartEligible !== false) === eligible) return col;
+        return Object.assign({}, col, { decision: Object.assign({}, col.decision, { chartEligible: eligible }) });
+      }
+      return Object.assign({}, col, { decision: buildOverrideDecision(ov.role, eligible) });
+    });
+    return Object.assign({}, analysis, { columns });
+  }
+
+  function buildOverrideDecision(role, chartEligible) {
+    const base = { role, confidence: 'high', rule: 'user_override', reason: 'Set manually on the mapping screen' };
+    if (role === 'measure') return Object.assign({}, base, { aggregation: 'sum' });
+    if (role === 'dimension') return Object.assign({}, base, { aggregation: null, chartEligible });
+    if (role === 'time') return Object.assign({}, base, { aggregation: null, granularity: 'day' });
+    return Object.assign({}, base, { aggregation: null }); // 'text' | 'excluded'
+  }
 
   /**
    * @param {string[]} headers column names, in column order
@@ -76,9 +119,11 @@
   return {
     analyzeTable,
     analyzeCsv,
+    applyRoleOverrides,
     CONFIG: Roles.CONFIG,
     Aggregate,
     Layout,
+    Reconcile,
     buildLayoutSpec: Layout.buildLayoutSpec,
     recomputeLayout: Layout.recompute,
   };

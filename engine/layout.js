@@ -22,7 +22,12 @@
     margin: { top: 32, right: 28, bottom: 40, left: 28 },
     gap: 28, // vertical gap between major sections
     header: { height: 60 },
-    filterBar: { height: 44, maxVisible: 5 },
+    // One chip-row per filterable dimension (render/dom.js#renderFilterBar) —
+    // sized for the worst case (maxVisible rows) so it never overlaps the
+    // widget below it; most datasets show fewer than maxVisible and just
+    // leave the rest of the box empty, same tradeoff every other fixed
+    // heuristic constant in this file makes.
+    filterBar: { height: 150, maxVisible: 5 },
     kpi: {
       maxCards: 6,
       heroHeight: 150,
@@ -54,6 +59,11 @@
     if (sel.time && sel.primaryMeasure) plan.push({ kind: 'line', time: sel.time });
     for (const dim of sel.dimensions) {
       if (plan.length >= LAYOUT.chart.maxCount) break;
+      // chartEligible === false is a user override (mapping screen: "filter
+      // only") — the column still drives the filter bar via sel.dimensions
+      // below, it just never gets a chart of its own. Absent/true (auto-
+      // classified dimensions) keeps today's behavior.
+      if (dim.decision.chartEligible === false) continue;
       if (dim.profile.uniqueCount <= LAYOUT.chart.maxDimensionCardinality) plan.push({ kind: 'bar', dimension: dim });
     }
     return plan.slice(0, LAYOUT.chart.maxCount);
@@ -62,12 +72,14 @@
   // --- skeleton: widget ids/types/rects and the static (data-independent)
   // parts of each widget. Positions never change with filters or theme. ---
 
-  function buildSkeleton(columns, rowCount) {
+  function buildSkeleton(columns, rowCount, widgetConfig) {
+    const cfg = Object.assign({ enabledKpis: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
     const sel = selectColumns(columns);
-    const chartPlan = planCharts(sel);
-    const kpiMeasures = sel.measures.slice(0, LAYOUT.kpi.maxCards);
-    const filterDims = sel.dimensions.slice(0, LAYOUT.filterBar.maxVisible);
-    const overflowDims = sel.dimensions.slice(LAYOUT.filterBar.maxVisible);
+    const chartPlan = cfg.showCharts ? planCharts(sel) : [];
+    const kpiCandidates = cfg.enabledKpis ? sel.measures.filter((m) => cfg.enabledKpis.includes(m.name)) : sel.measures;
+    const kpiMeasures = kpiCandidates.slice(0, LAYOUT.kpi.maxCards);
+    const filterDims = cfg.showFilters ? sel.dimensions.slice(0, LAYOUT.filterBar.maxVisible) : [];
+    const overflowDims = cfg.showFilters ? sel.dimensions.slice(LAYOUT.filterBar.maxVisible) : [];
 
     const W = contentWidth();
     const x0 = LAYOUT.margin.left;
@@ -154,16 +166,18 @@
       y += rows * LAYOUT.chart.height + (rows - 1) * LAYOUT.chart.gridGap + LAYOUT.gap;
     }
 
-    const referenceRows = Math.max(Math.min(rowCount, LAYOUT.table.minReferenceRows), Math.min(rowCount, LAYOUT.table.maxReferenceRows));
-    const tableH = LAYOUT.table.headerHeight + LAYOUT.table.footerHeight + referenceRows * LAYOUT.table.referenceRowHeight;
-    widgets.push({
-      id: 'table',
-      type: 'table',
-      rect: { x: x0, y, w: W, h: tableH },
-      columns: sel.tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null })),
-      defaultSort: { key: (sel.time || sel.tableColumns[0] || {}).name, dir: 'asc' },
-    });
-    y += tableH;
+    if (cfg.showTable) {
+      const referenceRows = Math.max(Math.min(rowCount, LAYOUT.table.minReferenceRows), Math.min(rowCount, LAYOUT.table.maxReferenceRows));
+      const tableH = LAYOUT.table.headerHeight + LAYOUT.table.footerHeight + referenceRows * LAYOUT.table.referenceRowHeight;
+      widgets.push({
+        id: 'table',
+        type: 'table',
+        rect: { x: x0, y, w: W, h: tableH },
+        columns: sel.tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null })),
+        defaultSort: { key: (sel.time || sel.tableColumns[0] || {}).name, dir: 'asc' },
+      });
+      y += tableH;
+    }
 
     return { canvas: { width: LAYOUT.width, height: y + LAYOUT.margin.bottom }, widgets, sel, chartPlan };
   }
@@ -250,15 +264,15 @@
 
   /**
    * @param {{rowCount:number, columns:Array}} analysis result of engine/index.js#analyzeTable
-   * @param {{title?:string, subtitle?:string}} [meta]
+   * @param {{title?:string, subtitle?:string, widgetConfig?:{enabledKpis:?string[], showCharts:boolean, showTable:boolean, showFilters:boolean}}} [meta]
    * @returns {{canvas:object, widgets:Array}} the full layoutSpec, unfiltered
    */
   function buildLayoutSpec(analysis, meta) {
     const { columns, rowCount } = analysis;
-    const skeleton = buildSkeleton(columns, rowCount);
+    const fillMeta = Object.assign({ title: 'Dashboard', subtitle: null, activeFilters: {}, sort: null, widgetConfig: null }, meta);
+    const skeleton = buildSkeleton(columns, rowCount, fillMeta.widgetConfig);
     const columnsByName = Aggregate.byName(columns);
     const rowIndices = Aggregate.allRowIndices(rowCount);
-    const fillMeta = Object.assign({ title: 'Dashboard', subtitle: null, activeFilters: {}, sort: null }, meta);
 
     return {
       canvas: skeleton.canvas,

@@ -29,11 +29,32 @@
     // parent -> dialog: { mode: 'live', analysis, meta } or
     // { mode: 'frozen', layoutSpec, meta }
     DATA: 'data',
-    // dialog -> parent: the resolved {canvas, widgets} to place on the sheet
-    // (already filtered/sorted — see render/dom.js's getSpecForShare)
+    // dialog -> parent: the resolved {canvas, widgets, theme} to place on
+    // the sheet (already filtered/sorted — see render/dom.js's getSpecForShare)
     PLACE_ON_SHEET: 'place-on-sheet',
     // parent -> dialog: { ok: true, shapeName } or { ok: false, error }
     PLACE_ON_SHEET_RESULT: 'place-on-sheet-result',
+    // dialog -> parent, sent on every filter/sort/theme/widgetConfig change —
+    // the parent just remembers the latest one (addin/taskpane.js's
+    // state.lastDialogState) so it survives the dialog closing, however it
+    // closes. Shape: { activeFilters:Object<string,string[]>, sort, theme, widgetConfig }
+    STATE_UPDATE: 'state-update',
+    // dialog -> parent: same shape as STATE_UPDATE — "re-read my current
+    // source and send me fresh data, preserving (a reconciled version of)
+    // the state I'm handing you right now."
+    REFRESH_REQUEST: 'refresh-request',
+    // parent -> dialog: { ok:true, analysis, meta, seedState } (seedState is
+    // just the request's payload echoed back) or { ok:false, error }
+    REFRESH_RESULT: 'refresh-result',
+    // dialog -> parent: same shape as STATE_UPDATE — "let the user pick a
+    // different range/table in the task pane; when they're done, send me
+    // fresh data the same way Refresh does."
+    CHANGE_RANGE_REQUEST: 'change-range-request',
+    // parent -> dialog: { ok:true, analysis, meta, seedState, source } (seedState
+    // is the request's payload, only meaningful if the new source's column
+    // names are an exact match for the old one — see engine/reconcile.js)
+    // or { ok:false, error } (including a plain cancel)
+    CHANGE_RANGE_RESULT: 'change-range-result',
   };
 
   // Conservative default, not a measured failure point of the real Office

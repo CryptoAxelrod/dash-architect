@@ -16,9 +16,34 @@
     <button type="button" data-theme="report" aria-pressed="false">Report</button>
     <button type="button" data-theme="print" aria-pressed="false">Print</button>
   </div>
+  <div class="toolbar-actions" id="dlg-live-actions" hidden>
+    <span class="source-label" id="dlg-source"></span>
+    <span class="refreshed-at" id="dlg-refreshed-at"></span>
+    <button type="button" class="tbtn" id="dlg-refresh">Refresh</button>
+    <button type="button" class="tbtn" id="dlg-change-range">Change data range</button>
+    <button type="button" class="tbtn tbtn-icon" id="dlg-settings-toggle" title="Dashboard settings" aria-label="Dashboard settings">⚙</button>
+  </div>
   <p class="status" id="dlg-status" hidden></p>
 </div>
+<div class="banner" id="dlg-banner" hidden></div>
 <div class="stage"><div class="inner" id="dlg-mount"></div></div>
+
+<div class="settings-panel" id="dlg-settings" hidden>
+  <div class="settings-head">
+    <h2>Dashboard settings</h2>
+    <button type="button" class="tbtn" id="dlg-settings-close">Close</button>
+  </div>
+  <div class="settings-section">
+    <h3>KPI cards</h3>
+    <div id="dlg-settings-kpis"></div>
+  </div>
+  <div class="settings-section">
+    <h3>Sections</h3>
+    <label class="settings-row"><input type="checkbox" id="dlg-cfg-charts" checked> Chart</label>
+    <label class="settings-row"><input type="checkbox" id="dlg-cfg-table" checked> Table</label>
+    <label class="settings-row"><input type="checkbox" id="dlg-cfg-filters" checked> Filters</label>
+  </div>
+</div>
 
 <script src="../engine/values.js"></script>
 <script src="../engine/csv.js"></script>
@@ -26,6 +51,7 @@
 <script src="../engine/roles.js"></script>
 <script src="../engine/aggregate.js"></script>
 <script src="../engine/layout.js"></script>
+<script src="../engine/reconcile.js"></script>
 <script src="../engine/index.js"></script>
 <script src="../render/format.js"></script>
 <script src="../render/themes.js"></script>
