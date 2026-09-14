@@ -256,7 +256,7 @@
 
   function init() {
     Object.assign(els, {
-      showList: $('show-list'), viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
+      showList: $('show-list'), versionBadge: $('version-badge'), viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
       tableBadge: $('ref-table-badge'),
       hint: $('ref-hint'), meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
@@ -294,6 +294,9 @@
 
     renderProgress();
     refreshStartupList();
+
+    // TEMPORARY — see addin/version.js; remove with it before release.
+    if (window.DASH_BUILD_VERSION != null) els.versionBadge.textContent = `v${window.DASH_BUILD_VERSION}`;
   }
 
   // Shows saved dashboards directly on the startup screen, above "Choose

@@ -26,6 +26,13 @@ body { display: flex; flex-direction: column; background: var(--paper); font-siz
 }
 .themes button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
 
+/* TEMPORARY — see addin/version.js; remove with it before release. */
+.version-badge {
+  font: 600 10.5px ui-monospace, Menlo, Consolas, monospace;
+  color: var(--muted); background: var(--paper); border: 1px solid var(--rule); padding: 3px 6px; border-radius: 5px; flex: none;
+}
+.version-badge:empty { display: none; }
+
 .toolbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
 .source-label { font-size: 12px; color: var(--muted); }
 .refreshed-at { font-size: 11px; color: var(--muted); }

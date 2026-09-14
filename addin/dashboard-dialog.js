@@ -51,7 +51,11 @@
     settingsCharts: document.getElementById('dlg-settings-charts'),
     cfgTable: document.getElementById('dlg-cfg-table'),
     cfgFilters: document.getElementById('dlg-cfg-filters'),
+    versionBadge: document.getElementById('dlg-version-badge'),
   };
+
+  // TEMPORARY — see addin/version.js; remove with it before release.
+  if (window.DASH_BUILD_VERSION != null) els.versionBadge.textContent = `v${window.DASH_BUILD_VERSION}`;
 
   let controller = null;
   let mode = null; // 'live' | 'frozen'

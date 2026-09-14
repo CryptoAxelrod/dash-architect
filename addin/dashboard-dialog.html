@@ -17,6 +17,8 @@
     <button type="button" data-theme="report" aria-pressed="false">Report</button>
     <button type="button" data-theme="print" aria-pressed="false">Print</button>
   </div>
+  <!-- TEMPORARY — see addin/version.js; remove this span with it before release. -->
+  <span class="version-badge" id="dlg-version-badge" title="Build marker — confirms which deploy actually loaded"></span>
   <div class="toolbar-actions" id="dlg-live-actions" hidden>
     <span class="source-label" id="dlg-source"></span>
     <span class="refreshed-at" id="dlg-refreshed-at"></span>
@@ -73,6 +75,8 @@
 <script src="../render/dom.js"></script>
 <script src="theme-picker.js"></script>
 <script src="dialog-messaging.js"></script>
+<!-- TEMPORARY — see addin/version.js; remove before release. -->
+<script src="version.js"></script>
 <script src="dashboard-dialog.js"></script>
 </body>
 </html>

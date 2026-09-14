@@ -52,6 +52,13 @@ h1 { margin: 0; font-size: 19px; line-height: 1.1; font-weight: 760; letter-spac
 .icon-btn:hover { border-color: var(--green-mid); }
 .icon-btn svg { width: 16px; height: 16px; fill: var(--muted); }
 
+/* TEMPORARY — see addin/version.js; remove with it before release. */
+.version-badge {
+  margin-left: auto; flex: none; font: 600 10.5px ui-monospace, Menlo, Consolas, monospace;
+  color: var(--faint); background: var(--rule-soft); padding: 3px 6px; border-radius: 5px;
+}
+.version-badge:empty { display: none; }
+
 /* ---------- Debug panel (temporary) ---------- */
 .debug-panel { margin: 10px 16px 0; padding: 8px 10px; background: #FFF6D6; border: 1px solid #E0B400; border-radius: 6px; }
 .debug-panel .debug-head { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; color: #6B5400; margin-bottom: 4px; }

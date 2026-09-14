@@ -25,6 +25,8 @@
     <h1>Dash Architect</h1>
     <p class="tagline">Dashboards for Excel in minutes</p>
   </div>
+  <!-- TEMPORARY — see addin/version.js; remove this span with it before release. -->
+  <span class="version-badge" id="version-badge" title="Build marker — confirms which deploy actually loaded"></span>
   <button type="button" class="icon-btn" id="show-list" title="Dashboards in this workbook" aria-label="Dashboards in this workbook">
     <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="9" width="14" height="3" rx="1"/><rect x="3" y="14" width="14" height="3" rx="1"/></svg>
   </button>
@@ -182,6 +184,8 @@
 <script src="excel-io.js"></script>
 <script src="dashboard-io.js"></script>
 <script src="dialog-messaging.js"></script>
+<!-- TEMPORARY — see addin/version.js; remove before release. -->
+<script src="version.js"></script>
 <script src="taskpane.js"></script>
 </body>
 </html>
