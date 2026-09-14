@@ -52,3 +52,9 @@ body { display: flex; flex-direction: column; background: var(--paper); font-siz
 .settings-section { margin-bottom: 18px; }
 .settings-section h3 { margin: 0 0 8px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
 .settings-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+
+.chart-config-row { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.chart-config-row:last-child { border-bottom: 0; }
+.chart-config-row .settings-row { padding: 0 0 6px; font-weight: 600; }
+.chart-config-controls { display: flex; gap: 6px; flex-wrap: wrap; padding-left: 24px; }
+.chart-config-controls select { font: 12px inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--rule); background: #fff; color: var(--ink); flex: 1 1 auto; min-width: 0; }

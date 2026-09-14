@@ -299,14 +299,19 @@
     });
     if (cur.length) segs.push(cur);
 
+    // The chart's own series color, not theme.color.accent — a palette
+    // choice must actually change what a single-series chart looks like
+    // (see render/palettes.js's doc comment on why this is a separate
+    // token from the theme's brand/UI accent).
+    const seriesColor = theme.chart.seriesColors[0];
     for (const seg of segs) {
       const d = seg.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-      out += `<path d="${d}" fill="none" stroke="${theme.color.accent}" stroke-width="${theme.chart.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>`;
+      out += `<path d="${d}" fill="none" stroke="${seriesColor}" stroke-width="${theme.chart.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>`;
     }
     if (theme.chart.markers) {
       const shape = theme.chart.markers[0];
       xy.forEach(([x, y]) => {
-        if (y != null) out += `<g fill="${theme.color.accent}">${markerPath(shape, x, y, 6)}</g>`;
+        if (y != null) out += `<g fill="${seriesColor}">${markerPath(shape, x, y, 6)}</g>`;
       });
     }
 
@@ -331,6 +336,16 @@
     const { defs, fill } = collectHatchDefs(theme, 1);
     out = defs + out;
 
+    // Palette color, not theme.color.accent — see renderLineChart's comment.
+    // The non-peak bars get a version mixed 62% toward the paper color: the
+    // old accent/accentSoft pair was two hand-picked shades of the same
+    // theme green; a palette color has no such hand-authored soft twin, so
+    // it's derived instead (Format.mixHex) rather than doubling every
+    // palette's color count for a fill that's always "the series color,
+    // muted" and never independently art-directed.
+    const seriesColor = theme.chart.seriesColors[0];
+    const softColor = Format.mixHex(seriesColor, theme.color.paper, 0.62);
+
     const peakIdx = values.reduce((best, v, i) => (v != null && (best < 0 || v > values[best]) ? i : best), -1);
 
     if (!horizontal) {
@@ -346,7 +361,7 @@
         const top = Math.min(y0, y1);
         const h = Math.max(Math.abs(y0 - y1), 1.5);
         const isPeak = i === peakIdx;
-        out += rect(cx - bw / 2, top, bw, h, { fill: isPeak ? theme.color.accent : theme.chart.textures ? fill(0) : theme.color.accentSoft, stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null, rx: theme.chart.barRadius });
+        out += rect(cx - bw / 2, top, bw, h, { fill: isPeak ? seriesColor : theme.chart.textures ? fill(0) : softColor, stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null, rx: theme.chart.barRadius });
         if (isPeak) {
           out += text(cx, top - 6, Format.formatMeasureValue(widget, b.value, { short: true }), { fill: theme.color.ink, 'font-size': theme.type.axis, 'font-weight': 650, 'text-anchor': 'middle', 'font-family': theme.font.family });
         }
@@ -376,7 +391,7 @@
         if (b.value == null) return;
         const isPeak = i === peakIdx;
         const w = xScale(b.value) - barPlot.x;
-        out += rect(barPlot.x, cy - bh / 2, w, bh, { fill: isPeak ? theme.color.accent : theme.chart.textures ? fill(0) : theme.color.accentSoft, stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null, rx: theme.chart.barRadius });
+        out += rect(barPlot.x, cy - bh / 2, w, bh, { fill: isPeak ? seriesColor : theme.chart.textures ? fill(0) : softColor, stroke: theme.chart.textures ? theme.color.ink : null, 'stroke-width': theme.chart.textures ? 1 : null, rx: theme.chart.barRadius });
         out += text(barPlot.x + w + 6, cy + 4, Format.formatMeasureValue(widget, b.value, { short: true }), { fill: theme.color.muted, 'font-size': theme.type.axis, 'font-family': theme.font.family });
         regions.push({ rect: { x: barPlot.x, y: cy - bh / 2, w, h: bh }, value: b.value, category: b.category, dimension: widget.dimensionColumn || null });
       });

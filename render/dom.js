@@ -326,18 +326,37 @@
       return renderChartWidget(w, state.theme, addToFilter);
     }
 
-    const MAX_CHIPS_SHOWN = 8;
+    const MAX_CHIPS_SHOWN = 12;
 
-    // One row per filterable dimension: a label followed by a value chip
-    // per distinct value (click toggles membership in that dimension's
-    // active set — multi-select, additive, same Set semantics chart-click
-    // filtering already uses via addToFilter). Beyond MAX_CHIPS_SHOWN
-    // values, the rest collapse behind a "+N more" chip that expands them
-    // in place (mountFrozen keeps its own separate, inert renderReadOnlyFilterBar —
-    // this function only ever runs in live mode).
+    // One row per filterable dimension: an "All" chip (active whenever
+    // nothing specific is picked; clears the whole set) followed by a chip
+    // per distinct value, matching reference/dashboard.html's chip
+    // behavior exactly — click toggles membership, multiple values can be
+    // active at once, same Set semantics chart-click filtering already
+    // uses via addToFilter. `f.values` always covers every value the
+    // dimension has (engine/layout.js fills it from the unfiltered row
+    // universe on purpose) so picking one never collapses the row down to
+    // just itself. Beyond MAX_CHIPS_SHOWN — already ranked by count,
+    // descending, see engine/aggregate.js#distinctValues — the rest
+    // collapse behind a "+N" chip that expands them in place (mountFrozen
+    // keeps its own separate, inert renderReadOnlyFilterBar — this
+    // function only ever runs in live mode).
     function renderFilterBar(w) {
       const c = state.theme.color;
       const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', overflow: 'hidden' }) });
+
+      function chip(label, isActive, onclick) {
+        return el('button', {
+          type: 'button',
+          class: 'dash-filter-chip',
+          style: {
+            font: `12px ${state.theme.font.family}`, padding: '6px 13px', borderRadius: px(state.theme.radius.pill),
+            border: `1px solid ${isActive ? c.accent : c.rule}`, background: isActive ? c.accent : 'transparent',
+            color: isActive ? c.panel : c.ink, cursor: 'pointer',
+          },
+          onclick,
+        }, label);
+      }
 
       for (const f of w.filters) {
         const active = state.activeFilters[f.column] || new Set();
@@ -348,23 +367,18 @@
         const row = el('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } });
         row.appendChild(el('span', { style: { font: `11.5px ${state.theme.font.family}`, color: c.muted, flex: 'none' } }, `${f.column}:`));
 
+        row.appendChild(chip('All', active.size === 0, () => {
+          setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: new Set() }) });
+        }));
+
         for (const v of shown) {
           const isActive = active.has(v.value);
-          row.appendChild(el('button', {
-            type: 'button',
-            class: 'dash-filter-chip',
-            style: {
-              font: `12px ${state.theme.font.family}`, padding: '4px 11px', borderRadius: px(state.theme.radius.pill),
-              border: `1px solid ${isActive ? c.accent : c.rule}`, background: isActive ? c.accent : 'transparent',
-              color: isActive ? c.panel : c.ink, cursor: 'pointer',
-            },
-            onclick: () => {
-              const next = new Set(active);
-              if (next.has(v.value)) next.delete(v.value);
-              else next.add(v.value);
-              setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: next }) });
-            },
-          }, `${v.value} (${v.count})`));
+          row.appendChild(chip(`${v.value} (${v.count})`, isActive, () => {
+            const next = new Set(active);
+            if (next.has(v.value)) next.delete(v.value);
+            else next.add(v.value);
+            setState({ activeFilters: Object.assign({}, state.activeFilters, { [f.column]: next }) });
+          }));
         }
 
         if (hiddenCount > 0) {
@@ -372,7 +386,7 @@
             type: 'button',
             style: { font: `12px ${state.theme.font.family}`, padding: '4px 8px', border: 'none', background: 'transparent', color: c.muted, cursor: 'pointer', textDecoration: 'underline' },
             onclick: () => setState({ expandedFilters: new Set(state.expandedFilters).add(f.column) }),
-          }, `+${hiddenCount} more`));
+          }, `+${hiddenCount}`));
         } else if (expanded && f.values.length > MAX_CHIPS_SHOWN) {
           row.appendChild(el('button', {
             type: 'button',

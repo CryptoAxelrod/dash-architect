@@ -62,9 +62,16 @@
    * "Generate" on the same range can honor a manually-overridden mapping
    * per CLAUDE.md's "user mapping edits win" rule, independent of whatever
    * this particular generation's frozen layout looks like.
+   *
+   * `theme`/`palette` ride along for one reason: which chart/KPI exists is
+   * already baked into `layoutSpec.widgets` by the snapshot itself, but
+   * *color* is resolved from theme+palette at render time
+   * (render/dom.js#mountFrozen) — without these, a restored dashboard would
+   * silently render in light/meridian regardless of what it looked like
+   * when placed.
    */
-  function buildStoragePayload({ snapshot, mapping, sourceAddress, title }) {
-    return { version: 1, generatedAt: new Date().toISOString(), sourceAddress, title, mapping, layoutSpec: snapshot };
+  function buildStoragePayload({ snapshot, mapping, sourceAddress, title, theme, palette }) {
+    return { version: 1, generatedAt: new Date().toISOString(), sourceAddress, title, mapping, theme: theme || 'light', palette: palette || 'meridian', layoutSpec: snapshot };
   }
 
   // --- Office.js: everything below this line touches context.workbook ---
@@ -125,13 +132,13 @@
    * testable.
    *
    * @param {Excel.RequestContext} context
-   * @param {{pngBase64:string, canvasSize:object, snapshot:object, mapping:Array, sourceAddress:string, title:string}} args
+   * @param {{pngBase64:string, canvasSize:object, snapshot:object, mapping:Array, sourceAddress:string, title:string, theme?:string, palette?:string}} args
    * @returns {Promise<{shapeName:string}>}
    */
   async function generateAndPlace(context, args) {
     const shapeName = makeShapeName(Date.now());
     await placeDashboardImage(context, args.pngBase64, args.canvasSize, shapeName);
-    const payload = buildStoragePayload({ snapshot: args.snapshot, mapping: args.mapping, sourceAddress: args.sourceAddress, title: args.title });
+    const payload = buildStoragePayload({ snapshot: args.snapshot, mapping: args.mapping, sourceAddress: args.sourceAddress, title: args.title, theme: args.theme, palette: args.palette });
     await saveDashboardSettings(context, shapeName, payload);
     return { shapeName };
   }

@@ -1,0 +1,18 @@
+/* Shared {theme, palette} picker (addin/theme-picker.js) — loaded by both
+   taskpane.html and dashboard-dialog.html, which already define the same
+   --panel/--rule/--muted tokens for their own chrome (not the dashboard
+   theme itself, which is a separate, unrelated color set). */
+.tp-section { margin-bottom: 14px; }
+.tp-section h3 { margin: 0 0 8px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
+.tp-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tp-swatch {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px 6px 8px;
+  border: 2px solid transparent; border-radius: 8px; background: var(--panel);
+  box-shadow: 0 0 0 1px var(--rule); font: 12.5px inherit; font-weight: 600; cursor: pointer;
+}
+.tp-swatch:hover { box-shadow: 0 0 0 1px var(--muted); }
+.tp-swatch-bar { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.tp-dots { display: flex; gap: 3px; flex: none; }
+.tp-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.tp-preview { margin-top: 6px; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: #fff; }
+.tp-preview svg { display: block; width: 100%; height: auto; }

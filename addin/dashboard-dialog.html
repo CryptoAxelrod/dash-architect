@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard — Dash Architect</title>
 <link rel="stylesheet" href="dashboard-dialog.css">
+<link rel="stylesheet" href="theme-picker.css">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -34,12 +35,19 @@
     <button type="button" class="tbtn" id="dlg-settings-close">Close</button>
   </div>
   <div class="settings-section">
+    <h3>Theme &amp; palette</h3>
+    <div id="dlg-theme-picker"></div>
+  </div>
+  <div class="settings-section">
     <h3>KPI cards</h3>
     <div id="dlg-settings-kpis"></div>
   </div>
   <div class="settings-section">
+    <h3>Charts</h3>
+    <div id="dlg-settings-charts"></div>
+  </div>
+  <div class="settings-section">
     <h3>Sections</h3>
-    <label class="settings-row"><input type="checkbox" id="dlg-cfg-charts" checked> Chart</label>
     <label class="settings-row"><input type="checkbox" id="dlg-cfg-table" checked> Table</label>
     <label class="settings-row"><input type="checkbox" id="dlg-cfg-filters" checked> Filters</label>
   </div>
@@ -54,10 +62,12 @@
 <script src="../engine/reconcile.js"></script>
 <script src="../engine/index.js"></script>
 <script src="../render/format.js"></script>
+<script src="../render/palettes.js"></script>
 <script src="../render/themes.js"></script>
 <script src="../render/svg.js"></script>
 <script src="../render/share.js"></script>
 <script src="../render/dom.js"></script>
+<script src="theme-picker.js"></script>
 <script src="dialog-messaging.js"></script>
 <script src="dashboard-dialog.js"></script>
 </body>

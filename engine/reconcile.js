@@ -40,8 +40,8 @@
    * `rawState` stays absent.
    *
    * @param {{columns:Array}} analysis the analysis the caller is about to mount/remount with
-   * @param {{activeFilters?, sort?, theme?, widgetConfig?}} rawState
-   * @returns {{activeFilters, sort, theme, widgetConfig}|null} null if rawState itself was null/undefined
+   * @param {{activeFilters?, sort?, theme?, palette?, widgetConfig?}} rawState
+   * @returns {{activeFilters, sort, theme, palette, widgetConfig}|null} null if rawState itself was null/undefined
    */
   function reconcileDashboardState(analysis, rawState) {
     if (!rawState) return null;
@@ -67,8 +67,35 @@
       });
       widgetConfig = Object.assign({}, widgetConfig, { enabledKpis: kept.length ? kept : null });
     }
+    // chartOverrides' chart ids are positional (engine/layout.js#planCharts
+    // assigns them fresh every build) so a stale id just silently stops
+    // matching anything on the next build — nothing to reconcile there.
+    // The dimension/measure *names* inside a surviving override are a real
+    // dangling reference risk after a Refresh/Change-range drops a column,
+    // so those get the same drop-if-gone treatment as enabledKpis.
+    if (widgetConfig && widgetConfig.chartOverrides) {
+      const cleaned = {};
+      for (const [chartId, override] of Object.entries(widgetConfig.chartOverrides)) {
+        const next = {};
+        if (override.type) next.type = override.type;
+        if (override.dimensionColumn) {
+          const c = byName.get(override.dimensionColumn);
+          if (c && c.decision.role === 'dimension') next.dimensionColumn = override.dimensionColumn;
+        }
+        if (override.measureColumn) {
+          const c = byName.get(override.measureColumn);
+          if (c && c.decision.role === 'measure') next.measureColumn = override.measureColumn;
+        }
+        if (Object.keys(next).length) cleaned[chartId] = next;
+      }
+      widgetConfig = Object.assign({}, widgetConfig, { chartOverrides: Object.keys(cleaned).length ? cleaned : null });
+    }
 
-    return { activeFilters, sort, theme: rawState.theme || 'light', widgetConfig };
+    // 'meridian' mirrors render/palettes.js#DEFAULT_PALETTE as a literal —
+    // engine stays free of any dependency on /render (CLAUDE.md §2's spirit
+    // extended to the render layer too), same reason 'light' above isn't
+    // imported from render/themes.js either.
+    return { activeFilters, sort, theme: rawState.theme || 'light', palette: rawState.palette || 'meridian', widgetConfig };
   }
 
   /**

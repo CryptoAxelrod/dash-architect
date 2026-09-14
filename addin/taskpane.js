@@ -52,6 +52,8 @@
     analysis: null, // effective (override-applied) analysis of the currently open/last-open dashboard
     roleOverrides: null, // {colName: {role, chartEligible}} | null — from the mapping screen, reapplied on every Refresh
     title: null,
+    theme: 'light', // chosen on the pre-generate theme/palette step; sticky across dashboards as a "last picked" default
+    palette: 'meridian',
     lastDialogState: null, // {activeFilters, sort, theme, widgetConfig} from the dialog's STATE_UPDATE — survives the dialog closing
     result: null,
     pendingChangeRange: null, // {dlg, raw, requestId} while pickingFor === 'change-range'
@@ -253,9 +255,10 @@
       generate: $('generate'), ctaLabel: $('cta-label'), ctaFill: $('cta-fill'), buildError: $('build-error'), buildTiming: $('build-timing'),
       reopenRow: $('reopen-row'), reopenDashboard: $('reopen-dashboard'), newDashboard: $('new-dashboard'), cancelChangeRange: $('cancel-change-range'),
       openStartOver: $('open-start-over'),
-      doneSub: $('done-sub'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
+      doneSub: $('done-sub'), doneSaveHint: $('done-save-hint'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
       listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
       mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
+      viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
       debugPanel: $('debug-panel'), debugLog: $('debug-log'),
     });
 
@@ -264,6 +267,8 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.picking) cancelPicking(); });
 
     els.generate.addEventListener('click', () => { if (state.pickingFor === 'change-range') completeChangeRangePicking(); else generate(); });
+    els.themeGenerate.addEventListener('click', finalizeGenerate);
+    els.themeCancel.addEventListener('click', () => showView('setup'));
     els.reopenDashboard.addEventListener('click', reopenDashboard);
     els.newDashboard.addEventListener('click', startNewDashboard);
     els.cancelChangeRange.addEventListener('click', cancelChangeRangePicking);
@@ -371,8 +376,15 @@
   function updateSourceBadge() {
     const isTable = state.source && state.source.kind === 'table';
     els.tableBadge.hidden = !isTable;
-    if (isTable) els.tableBadge.textContent = `Table: ${state.source.name}`;
-    els.cells.hidden = isTable;
+    // Only force the address text hidden when switching *to* a table — for
+    // every other case (range source, or no source at all) leave it as
+    // showAddress()/restoreRange() already set it; unconditionally writing
+    // `els.cells.hidden = isTable` here clobbered restoreRange's own
+    // `hidden = true` back to visible whenever isTable was false.
+    if (isTable) {
+      els.tableBadge.textContent = `Table: ${state.source.name}`;
+      els.cells.hidden = true;
+    }
   }
 
   function sourceLabel(source) {
@@ -384,6 +396,30 @@
   function sourceTitle() {
     if (state.source && state.source.kind === 'table') return state.source.name;
     return (state.range && splitAddress(state.range.address).sheet) || 'Dashboard';
+  }
+
+  // CLAUDE.md §7: a manual role mapping must survive a panel reload — it
+  // was never actually wired up on the read side (payload.mapping was
+  // write-only). Looked up fresh every time, not cached at startup, so a
+  // dashboard saved in another window/session for this same source is
+  // still found — matches purely by the saved sourceAddress label (exact
+  // string), same value `placeOnSheet` writes, most recent one wins.
+  async function findSavedMappingForSource(label) {
+    if (!label) return null;
+    let dashboards;
+    try {
+      dashboards = await host.listDashboards();
+    } catch (e) {
+      return null; // can't read right now — proceed with plain auto-classification, don't block on it
+    }
+    const candidates = dashboards.filter((d) => d.payload.sourceAddress === label && Array.isArray(d.payload.mapping));
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => new Date(b.payload.generatedAt || 0) - new Date(a.payload.generatedAt || 0));
+    const overrides = {};
+    for (const m of candidates[0].payload.mapping) {
+      overrides[m.name] = { role: m.role, chartEligible: m.chartEligible !== false };
+    }
+    return overrides;
   }
 
   function renderProgress() {
@@ -505,30 +541,30 @@
         els.buildTiming.textContent = `Read ${totalRows.toLocaleString('en-US')} rows in ${timing.totalMs}ms (values ${timing.valuesMs}ms, format sample ${timing.formatMs}ms)`;
       }
 
-      // Called either directly below (≤6 columns) — inside this try/catch —
-      // or later from the mapping screen's own Generate click, long after
-      // this function has already returned via `finally`; it needs its own
-      // error handling either way, or a dialog-open failure from the
-      // mapping-screen path would be an unhandled rejection with no visible error.
-      const proceed = async (analysis, overrides) => {
-        try {
-          state.roleOverrides = overrides || null;
-          state.analysis = analysis;
-          state.lastDialogState = null;
-          await openLiveDashboard();
-          setFooterState('open');
-        } catch (err) {
-          showView('setup');
-          setFooterState('idle');
-          els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
-          els.buildError.hidden = false;
-        }
+      // Restore a mapping saved for this exact source in an earlier session
+      // (or another window) before deciding anything else — the mapping
+      // screen below must show the restored roles, not bare auto-detection.
+      if (state.roleOverrides == null) {
+        state.roleOverrides = await findSavedMappingForSource(sourceLabel());
+      }
+      const effectiveAnalysis = window.DashEngine.applyRoleOverrides(rawAnalysis, state.roleOverrides);
+
+      // Called either directly below (≤6 columns) or later from the mapping
+      // screen's own Generate click — either way it just stages the
+      // analysis and hands off to the theme/palette step; opening the
+      // dialog itself (the part that can fail) happens in finalizeGenerate,
+      // triggered by that step's own Generate button.
+      const proceed = (analysis, overrides) => {
+        state.roleOverrides = overrides !== undefined ? overrides : state.roleOverrides;
+        state.analysis = analysis;
+        state.lastDialogState = null;
+        showThemeScreen();
       };
 
-      if (rawAnalysis.columns.length > 6) {
-        showMappingScreen(rawAnalysis, proceed);
+      if (effectiveAnalysis.columns.length > 6) {
+        showMappingScreen(effectiveAnalysis, proceed);
       } else {
-        await proceed(rawAnalysis, null);
+        proceed(effectiveAnalysis, state.roleOverrides);
       }
     } catch (err) {
       els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
@@ -547,9 +583,52 @@
     els.ctaFill.style.width = `${pct}%`;
   }
 
+  /* ---------- theme + palette step (between mapping and opening the
+     dialog) — single-click swatches + a live preview, see
+     addin/theme-picker.js. Picked once here; changed later from the same
+     picker inside the dialog's settings panel (addin/dashboard-dialog.js). ---------- */
+  function showThemeScreen() {
+    showView('theme');
+    renderThemePickerView();
+  }
+
+  function renderThemePickerView() {
+    window.DashThemePicker.render(
+      els.themePicker,
+      { THEMES: window.DashRenderThemes.THEMES, Palettes: window.DashRenderPalettes },
+      { theme: state.theme, palette: state.palette },
+      {
+        onThemeChange: (id) => { state.theme = id; renderThemePickerView(); },
+        onPaletteChange: (id) => { state.palette = id; renderThemePickerView(); },
+      }
+    );
+  }
+
+  // The actual dialog-opening step, deferred until the theme/palette step's
+  // own Generate click — see the `proceed` comment in generate() above for
+  // why this used to run inline there.
+  async function finalizeGenerate() {
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    try {
+      await openLiveDashboard();
+      showView('setup');
+      setFooterState('open');
+    } catch (err) {
+      showView('setup');
+      setFooterState('idle');
+      els.buildError.textContent = `Could not generate the dashboard: ${err && err.message ? err.message : String(err)}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
   async function reopenDashboard() {
     if (state.busy || !state.analysis) return;
     state.busy = true;
+    els.buildError.hidden = true;
     try {
       await openLiveDashboard();
       setFooterState('open');
@@ -566,6 +645,7 @@
     state.roleOverrides = null;
     state.lastDialogState = null;
     state.result = null;
+    els.buildError.hidden = true;
     setFooterState('idle');
     syncIdleFooter();
   }
@@ -666,6 +746,11 @@
       meta: { title: state.title, subtitle: `${state.analysis.rowCount.toLocaleString('en-US')} rows` },
       seedState: state.lastDialogState || null,
       source: sourceLabel(),
+      // Only consulted by the dialog when there's no seedState to restore
+      // theme/palette from (a genuinely fresh dashboard) — see the
+      // pre-generate theme/palette step above and dashboard-dialog.js#mountLive.
+      initialTheme: state.theme,
+      initialPalette: state.palette,
     });
   }
 
@@ -682,7 +767,7 @@
       dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => readyReceiver(arg.message));
 
       await readyPromise;
-      sendDataToDialog(dlg, { mode: 'frozen', layoutSpec: d.payload.layoutSpec });
+      sendDataToDialog(dlg, { mode: 'frozen', layoutSpec: d.payload.layoutSpec, initialTheme: d.payload.theme, initialPalette: d.payload.palette });
     } catch (err) {
       logDebug(`openRestoredDashboard: could not open the dialog — ${err && err.message ? err.message : String(err)}`);
     }
@@ -694,16 +779,20 @@
   // separate JS realm this pane has no access to.
   async function placeOnSheet(spec) {
     try {
-      const theme = window.DashRenderThemes.THEMES[spec.theme || 'light'];
+      const baseTheme = window.DashRenderThemes.THEMES[spec.theme || 'light'];
+      const theme = window.DashRenderPalettes.withPalette(baseTheme, spec.palette);
       const currentSpec = { canvas: spec.canvas, widgets: spec.widgets };
       const columnsByName = window.DashEngine.Aggregate.byName(state.analysis.columns);
       const pngBase64 = await window.DashRenderShare.renderPngBase64(currentSpec, theme, columnsByName, { scale: 2 });
 
       const snapshot = window.DashEngine.Layout.buildStorageSnapshot(currentSpec, state.analysis.columns);
-      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation }));
+      // chartEligible travels too — dropping it here is exactly how a
+      // "Filter only" mapping choice used to go silent on the next restore.
+      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
 
       const { shapeName } = await host.placeDashboard({
         pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), title: state.title,
+        theme: spec.theme, palette: spec.palette,
       });
       return { ok: true, shapeName };
     } catch (err) {
@@ -713,6 +802,7 @@
 
   async function handlePlaceOnSheet(dlg, spec, requestId) {
     logDebug(`place-on-sheet: request received (${requestId}).`);
+    els.buildError.hidden = true; // clear any stale error from a previous attempt before this one runs
     const result = await placeOnSheet(spec);
     const Msg = window.DashDialogMessaging;
     Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.PLACE_ON_SHEET_RESULT, result, null, requestId);
@@ -721,9 +811,20 @@
       els.doneSub.textContent = state.excel
         ? `It's on the sheet as a picture named "${result.shapeName}". Anyone opening the file just sees a picture; with this add-in, reopening it — from "Dashboards in this workbook" or by clicking it — opens the interactive version again in a dialog, without re-reading the sheet.`
         : `Preview mode (no Excel host here): "${result.shapeName}" was saved in memory instead of workbook.settings. Open "Dashboards in this workbook" below to see the restored, no-recompute view.`;
+      // workbook.settings (where the snapshot lives) only survives a
+      // close/reopen once the *file* itself is saved — context.sync() alone
+      // only commits to the live session. The picture looks placed either
+      // way, so this is the one place that actually tells the user.
+      els.doneSaveHint.hidden = !state.excel;
       setFooterState('done');
       logDebug(`place-on-sheet: placed as "${result.shapeName}".`);
     } else {
+      // The dialog's own "Place image on sheet" button already shows this
+      // (render/dom.js#renderPlaceButton), but that text is transient and
+      // in a separate window — a failure here must also be visible in the
+      // pane itself, not only in the temporary debug panel below.
+      els.buildError.textContent = `Could not place the dashboard on the sheet: ${result.error}`;
+      els.buildError.hidden = false;
       logDebug(`place-on-sheet: failed — ${result.error}`);
     }
   }
@@ -795,8 +896,11 @@
       const oldNames = state.analysis.columns.map((c) => c.name);
       const newNames = rawAnalysis.columns.map((c) => c.name);
       const matches = window.DashEngine.Reconcile.columnsStructureMatches(oldNames, newNames);
-      const overridesToCarry = matches ? state.roleOverrides : null;
-      if (!matches) state.roleOverrides = null;
+      // Same report, different period -> keep carrying today's session
+      // mapping. Genuinely different source -> don't blindly wipe it, this
+      // new source may have its own saved mapping from an earlier session.
+      const overridesToCarry = matches ? state.roleOverrides : await findSavedMappingForSource(sourceLabel());
+      if (!matches) state.roleOverrides = overridesToCarry;
 
       const finish = (finalAnalysis, overrides) => {
         state.analysis = finalAnalysis;
@@ -886,7 +990,8 @@
     els.viewSetup.hidden = name !== 'setup';
     els.viewList.hidden = name !== 'list';
     els.viewMapping.hidden = name !== 'mapping';
-    els.build.hidden = name === 'list' || name === 'mapping';
+    els.viewTheme.hidden = name !== 'theme';
+    els.build.hidden = name === 'list' || name === 'mapping' || name === 'theme';
   }
 
   function setFooterState(s) {

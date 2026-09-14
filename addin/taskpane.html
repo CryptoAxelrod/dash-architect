@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dash Architect</title>
 <link rel="stylesheet" href="taskpane.css">
+<link rel="stylesheet" href="theme-picker.css">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -36,6 +37,13 @@
   <div class="debug-head">Debug (temporary)</div>
   <pre id="debug-log"></pre>
 </div>
+
+<!-- Deliberately outside <main>/<footer>: a placement failure is reported
+     by the dialog (a separate window) and can land at any time, regardless
+     of which view or footer state this pane happens to be showing — a
+     "list"/"mapping" view hides the whole <footer>, which used to hide this
+     along with it. -->
+<p class="build-error" id="build-error" role="alert" hidden></p>
 
 <main id="views">
 
@@ -93,6 +101,18 @@
     <button type="button" class="cta cta-static" id="mapping-generate">Generate dashboard</button>
   </section>
 
+  <!-- Theme + palette, shown once per generate (after mapping confirms, or
+       right after the range for a ≤6-column source) — see addin/theme-picker.js.
+       Changed later from the same picker inside the dialog's settings panel. -->
+  <section class="view" id="view-theme" hidden>
+    <div class="list-head">
+      <h2>Choose a look</h2>
+      <button type="button" class="btn-quiet" id="theme-cancel">Cancel</button>
+    </div>
+    <div id="theme-picker"></div>
+    <button type="button" class="cta cta-static" id="theme-generate">Generate dashboard</button>
+  </section>
+
 </main>
 
 <footer class="build" id="build" data-state="idle">
@@ -110,7 +130,6 @@
       <button type="button" class="btn-quiet" id="new-dashboard">New dashboard</button>
     </div>
     <button type="button" class="btn-quiet" id="cancel-change-range" hidden>Cancel</button>
-    <p class="build-error" id="build-error" role="alert" hidden></p>
     <p class="build-timing" id="build-timing" hidden></p>
   </div>
 
@@ -127,6 +146,7 @@
         <p class="done-sub" id="done-sub">It's on the sheet as a picture. Anyone can open the file and see it; with this add-in, clicking it (or picking it from the list) reopens the interactive version here.</p>
       </div>
     </div>
+    <p class="done-save-hint" id="done-save-hint" hidden>Save the workbook now — this dashboard is stored inside it and won't survive closing the file without saving.</p>
     <div class="done-actions">
       <button type="button" class="btn-secondary" id="done-view-list">View dashboards</button>
       <button type="button" class="btn-quiet" id="done-start-over">Start over</button>
@@ -143,10 +163,12 @@
 <script src="../engine/reconcile.js"></script>
 <script src="../engine/index.js"></script>
 <script src="../render/format.js"></script>
+<script src="../render/palettes.js"></script>
 <script src="../render/themes.js"></script>
 <script src="../render/svg.js"></script>
 <script src="../render/share.js"></script>
 <script src="../render/dom.js"></script>
+<script src="theme-picker.js"></script>
 <script src="format-bridge.js"></script>
 <script src="excel-io.js"></script>
 <script src="dashboard-io.js"></script>

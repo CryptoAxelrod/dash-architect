@@ -18,21 +18,22 @@
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./palettes'));
   } else {
-    root.DashRenderThemes = factory();
+    root.DashRenderThemes = factory(root.DashRenderPalettes);
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (Palettes) {
   'use strict';
 
   const FONT_STACK = '"Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
 
-  // light's 6-color series family: the accent green plus five hues rotated
-  // around the wheel at a matching muted saturation/lightness band (not
-  // "extracted" from the demo — the demo only ever charts one metric in one
-  // color — but built to sit in the same desaturated, sketchbook-toned
-  // register as its palette, so it reads as this theme's own chart colors).
-  const LIGHT_SERIES = ['#1D6F4C', '#3B6E9C', '#B8863B', '#8A5FA6', '#4C8B8B', '#A6553F'];
+  // `chart.seriesColors` below is each theme's *default* series palette —
+  // render/palettes.js's "Meridian", the same values, single source of
+  // truth. A caller that wants a different palette overrides this via
+  // Palettes.withPalette(theme, paletteId) rather than this file growing a
+  // second, redundant color list per theme — see palettes.js's doc comment
+  // for why palette and theme are separate tokens in the first place.
+  const LIGHT_SERIES = Palettes.PALETTES.meridian.light;
 
   const light = {
     id: 'light',
@@ -62,7 +63,7 @@
   // up in lightness and pulled down in saturation from `light`'s — a flat
   // hue-inversion would either wash out against the dark ground or, at full
   // saturation, read as neon, which is the exact effect being avoided.
-  const DARK_SERIES = ['#4FAE7C', '#5E93C2', '#C9A15E', '#A98AC2', '#6FADAD', '#C07862'];
+  const DARK_SERIES = Palettes.PALETTES.meridian.dark;
 
   const dark = {
     id: 'dark',
@@ -91,7 +92,7 @@
   // rows/cards fit before scrolling — "for pasting into a report to
   // management." Same accent hue as `light`, just slightly less saturated
   // to read as restrained rather than a website's bright chart green.
-  const REPORT_SERIES = ['#1B6146', '#3E6A8C', '#9C7A3B', '#7A5C8C', '#3F7A7A', '#8C4E3B'];
+  const REPORT_SERIES = Palettes.PALETTES.meridian.report;
 
   const report = {
     id: 'report',
@@ -120,7 +121,7 @@
   // primary signal, color as a secondary one — so the dashboard still
   // reads correctly in black-and-white print and for colorblind viewers.
   // Negative numbers use accounting-style parentheses rather than color.
-  const PRINT_SERIES = ['#111111', '#3D3D3D', '#6B6B6B', '#8F8F8F', '#1B4D3A', '#4A2F1B'];
+  const PRINT_SERIES = Palettes.PALETTES.meridian.print;
 
   const print = {
     id: 'print',

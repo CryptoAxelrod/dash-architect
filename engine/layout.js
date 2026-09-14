@@ -66,16 +66,51 @@
       if (dim.decision.chartEligible === false) continue;
       if (dim.profile.uniqueCount <= LAYOUT.chart.maxDimensionCardinality) plan.push({ kind: 'bar', dimension: dim });
     }
-    return plan.slice(0, LAYOUT.chart.maxCount);
+    // Stable, order-based ids assigned right away — enabledCharts/
+    // chartOverrides (settings-panel "Charts" section) key off these, and
+    // need something to reference before enable-filtering can even run.
+    return plan.slice(0, LAYOUT.chart.maxCount).map((p, i) => Object.assign({ id: `chart-${i}` }, p));
+  }
+
+  // A chart's "form of data" bounds which types it can become: a time
+  // series only ever has one axis worth of buckets, so it stays a line —
+  // swapping to a dimension-shaped type would need re-bucketing into
+  // categories that don't exist. A dimension-by-measure chart (the 'bar'
+  // plan kind) is the same {category, value} shape read three ways.
+  const CHART_TYPE_OPTIONS = { line: ['line'], bar: ['bar', 'horizontalBar', 'donut'] };
+
+  // Applies a settings-panel chart override (type / dimensionColumn /
+  // measureColumn) on top of one auto-planned chart — silently ignoring
+  // anything that doesn't resolve against the *current* classification
+  // (a stale override surviving a Refresh onto data that dropped the
+  // column it named), same "reconcile, don't crash" spirit as
+  // engine/reconcile.js.
+  function applyChartOverride(plan, sel, override) {
+    if (!override) return plan;
+    const next = Object.assign({}, plan);
+    if (plan.kind === 'bar') {
+      if (override.type && CHART_TYPE_OPTIONS.bar.includes(override.type)) next.overrideType = override.type;
+      if (override.dimensionColumn) {
+        const dim = sel.dimensions.find((d) => d.name === override.dimensionColumn && d.profile.uniqueCount <= LAYOUT.chart.maxDimensionCardinality);
+        if (dim) next.dimension = dim;
+      }
+    }
+    if (override.measureColumn) {
+      const measure = sel.measures.find((m) => m.name === override.measureColumn);
+      if (measure) next.measure = measure;
+    }
+    return next;
   }
 
   // --- skeleton: widget ids/types/rects and the static (data-independent)
   // parts of each widget. Positions never change with filters or theme. ---
 
   function buildSkeleton(columns, rowCount, widgetConfig) {
-    const cfg = Object.assign({ enabledKpis: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
+    const cfg = Object.assign({ enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
     const sel = selectColumns(columns);
-    const chartPlan = cfg.showCharts ? planCharts(sel) : [];
+    let chartPlan = cfg.showCharts ? planCharts(sel) : [];
+    if (cfg.enabledCharts) chartPlan = chartPlan.filter((p) => cfg.enabledCharts.includes(p.id));
+    if (cfg.chartOverrides) chartPlan = chartPlan.map((p) => applyChartOverride(p, sel, cfg.chartOverrides[p.id]));
     const kpiCandidates = cfg.enabledKpis ? sel.measures.filter((m) => cfg.enabledKpis.includes(m.name)) : sel.measures;
     const kpiMeasures = kpiCandidates.slice(0, LAYOUT.kpi.maxCards);
     const filterDims = cfg.showFilters ? sel.dimensions.slice(0, LAYOUT.filterBar.maxVisible) : [];
@@ -141,7 +176,7 @@
       }
 
       if (hasChart1) {
-        widgets.push(chartWidgetSkeleton(chartPlan[0], sel.primaryMeasure, 'chart-0', { x: chartX, y, w: chartW, h: LAYOUT.chart.height }));
+        widgets.push(chartWidgetSkeleton(chartPlan[0], sel.primaryMeasure, chartPlan[0].id, { x: chartX, y, w: chartW, h: LAYOUT.chart.height }));
       }
 
       y += rowH + LAYOUT.gap;
@@ -161,7 +196,7 @@
           w: cellW,
           h: LAYOUT.chart.height,
         };
-        widgets.push(chartWidgetSkeleton(plan, sel.primaryMeasure, `chart-${i + 1}`, rect));
+        widgets.push(chartWidgetSkeleton(plan, sel.primaryMeasure, plan.id, rect));
       });
       y += rows * LAYOUT.chart.height + (rows - 1) * LAYOUT.chart.gridGap + LAYOUT.gap;
     }
@@ -183,23 +218,33 @@
   }
 
   function chartWidgetSkeleton(plan, primaryMeasure, id, rect) {
+    const measure = plan.measure || primaryMeasure;
     if (plan.kind === 'line') {
-      return { id, type: 'line', rect, title: `${primaryMeasure.name} over time`, timeColumn: plan.time.name, measureColumn: primaryMeasure.name };
+      return { id, type: 'line', rect, title: `${measure.name} over time`, timeColumn: plan.time.name, measureColumn: measure.name };
     }
-    return { id, type: 'bar', rect, title: `${primaryMeasure.name} by ${plan.dimension.name}`, dimensionColumn: plan.dimension.name, measureColumn: primaryMeasure.name };
+    const type = plan.overrideType || 'bar';
+    const verb = type === 'donut' ? 'share of' : 'by';
+    return { id, type, rect, title: `${measure.name} ${verb} ${plan.dimension.name}`, dimensionColumn: plan.dimension.name, measureColumn: measure.name };
   }
 
   // --- data fill: reads the skeleton's static fields, computes numbers
   // for the given row subset. Re-run on every filter change. ---
 
-  function fillWidgetData(widget, columns, rowIndices, columnsByName, meta) {
+  function fillWidgetData(widget, columns, rowIndices, columnsByName, meta, allRowIndices) {
     if (widget.type === 'header') return Object.assign({}, widget, { title: meta.title, subtitle: meta.subtitle });
 
     if (widget.type === 'filterBar') {
+      // Deliberately the *unfiltered* universe, not `rowIndices` (which is
+      // already narrowed by whatever filters are currently active) — a
+      // dimension's own chip row must keep showing every value it ever
+      // had, or picking one collapses the row down to just that value
+      // with no way back to the rest. `active` still reflects the current
+      // selection; only which chips exist is unaffected by filtering.
+      const universe = allRowIndices || rowIndices;
       return Object.assign({}, widget, {
         filters: widget.filters.map((f) => ({
           column: f.column,
-          values: Aggregate.distinctValues(columnsByName.get(f.column), rowIndices),
+          values: Aggregate.distinctValues(columnsByName.get(f.column), universe),
           active: meta.activeFilters && meta.activeFilters[f.column] ? [...meta.activeFilters[f.column]] : [],
         })),
       });
@@ -226,11 +271,22 @@
       return Object.assign({}, widget, { points, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
     }
 
-    if (widget.type === 'bar') {
+    // 'bar' and 'horizontalBar' are the same {category, value} data, just
+    // drawn on different axes (render/svg.js#renderBarChart's `horizontal`
+    // flag) — only 'donut' reshapes it (label/value, no per-bar rect math).
+    if (widget.type === 'bar' || widget.type === 'horizontalBar') {
       const dimCol = columnsByName.get(widget.dimensionColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
       const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName);
       return Object.assign({}, widget, { bars, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
+    }
+
+    if (widget.type === 'donut') {
+      const dimCol = columnsByName.get(widget.dimensionColumn);
+      const measureCol = columnsByName.get(widget.measureColumn);
+      const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName);
+      const slices = bars.map((b) => ({ label: b.category, value: b.value }));
+      return Object.assign({}, widget, { slices, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
     }
 
     if (widget.type === 'table') {
@@ -276,7 +332,7 @@
 
     return {
       canvas: skeleton.canvas,
-      widgets: skeleton.widgets.map((w) => fillWidgetData(w, columns, rowIndices, columnsByName, fillMeta)),
+      widgets: skeleton.widgets.map((w) => fillWidgetData(w, columns, rowIndices, columnsByName, fillMeta, rowIndices)),
     };
   }
 
@@ -288,9 +344,10 @@
   function recompute(analysis, skeletonWidgets, meta) {
     const { columns, rowCount } = analysis;
     const columnsByName = Aggregate.byName(columns);
+    const allRowIndices = Aggregate.allRowIndices(rowCount);
     const rowIndices = Aggregate.filterRowIndices(columns, rowCount, meta && meta.activeFilters);
     const fillMeta = Object.assign({ title: 'Dashboard', subtitle: null, activeFilters: {}, sort: null }, meta);
-    return skeletonWidgets.map((w) => fillWidgetData(w, columns, rowIndices, columnsByName, fillMeta));
+    return skeletonWidgets.map((w) => fillWidgetData(w, columns, rowIndices, columnsByName, fillMeta, allRowIndices));
   }
 
   /**
@@ -328,5 +385,5 @@
     return { canvas: layoutSpec.canvas, widgets };
   }
 
-  return { LAYOUT, selectColumns, planCharts, buildLayoutSpec, recompute, buildStorageSnapshot };
+  return { LAYOUT, selectColumns, planCharts, CHART_TYPE_OPTIONS, applyChartOverride, buildLayoutSpec, recompute, buildStorageSnapshot };
 });

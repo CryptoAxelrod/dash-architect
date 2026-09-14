@@ -12,6 +12,23 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // Lightens/darkens a hex color by mixing it toward another (e.g. the
+  // theme's own paper color) — used for a chart's "muted" fill (every bar
+  // but the highlighted one) from a palette color that, unlike the old
+  // per-theme accent/accentSoft pair, has no hand-authored soft variant of
+  // its own. `ratio` is how much of `towardHex` to mix in (0 = unchanged, 1 = towardHex).
+  function mixHex(hex, towardHex, ratio) {
+    const a = parseInt(hex.slice(1), 16);
+    const b = parseInt(towardHex.slice(1), 16);
+    const mix = (shift) => {
+      const av = (a >> shift) & 0xff;
+      const bv = (b >> shift) & 0xff;
+      return Math.round(av + (bv - av) * ratio);
+    };
+    const r = mix(16), g = mix(8), bch = mix(0);
+    return `#${[r, g, bch].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  }
+
   function formatNumber(v, decimals) {
     if (v == null || Number.isNaN(v)) return '—';
     const d = decimals == null ? (Number.isInteger(v) ? 0 : 2) : decimals;
@@ -83,5 +100,5 @@
     return size;
   }
 
-  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize };
+  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize, mixHex };
 });

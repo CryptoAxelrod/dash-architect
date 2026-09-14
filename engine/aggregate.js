@@ -115,7 +115,11 @@
 
   /**
    * Distinct dimension values present in a row subset, with counts.
-   * @returns {Array<{value:string, count:number}>} sorted alphabetically (matches reference/dashboard.html's category chip order)
+   * @returns {Array<{value:string, count:number}>} sorted by count, descending
+   *   (ties broken alphabetically for determinism) — the filter bar's only
+   *   consumer caps this at a fixed number of chips before "+N", so the
+   *   ones kept visible need to be the most-represented values, not
+   *   whichever happen to sort first alphabetically.
    */
   function distinctValues(column, rowIndices) {
     const counts = new Map();
@@ -126,7 +130,7 @@
     }
     return [...counts.entries()]
       .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => a.value.localeCompare(b.value));
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   }
 
   /**
