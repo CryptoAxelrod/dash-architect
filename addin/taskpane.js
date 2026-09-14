@@ -169,6 +169,9 @@
     async listDashboards() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.listDashboards(ctx));
     },
+    async countOrphanedDashboardShapes() {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.countOrphanedDashboardShapes(ctx));
+    },
     // Best-effort only — Excel's JS API has no first-class "shape was
     // clicked" event. A failing getSelectedRange() after a selection
     // change is the closest available signal that the selection might now
@@ -226,6 +229,11 @@
     async listDashboards() {
       return previewDashboards.map((d) => ({ shapeName: d.shapeName, payload: d.payload }));
     },
+    // No real sheet/shapes outside Excel — placeDashboard above never
+    // creates one that could go orphaned.
+    async countOrphanedDashboardShapes() {
+      return 0;
+    },
     async probeNonRangeSelection() {
       return false; // no selection events outside Excel
     },
@@ -258,7 +266,7 @@
       openStartOver: $('open-start-over'),
       doneSub: $('done-sub'), doneSaveHint: $('done-save-hint'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
       listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
-      startupList: $('startup-list'), startupDashItems: $('startup-dash-items'),
+      startupList: $('startup-list'), startupDashItems: $('startup-dash-items'), startupOrphanHint: $('startup-orphan-hint'),
       mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
       viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
       debugPanel: $('debug-panel'), debugLog: $('debug-log'),
@@ -306,6 +314,19 @@
     els.startupDashItems.innerHTML = '';
     for (const d of dashboards) {
       els.startupDashItems.appendChild(renderDashListItem(d));
+    }
+    // Same "book was closed without saving" signal as showList() — worth
+    // surfacing here too since this is the first screen the pane shows.
+    els.startupOrphanHint.hidden = true;
+    if (!dashboards.length) {
+      let orphanCount = 0;
+      try {
+        orphanCount = await host.countOrphanedDashboardShapes();
+      } catch (e) { /* leave the hint hidden */ }
+      if (orphanCount > 0) {
+        els.startupOrphanHint.hidden = false;
+        els.startupOrphanHint.textContent = `There ${orphanCount === 1 ? 'is' : 'are'} ${orphanCount} dashboard picture${orphanCount === 1 ? '' : 's'} on the sheets, but no saved settings to match — the workbook was likely closed without saving after ${orphanCount === 1 ? 'it was' : 'they were'} placed. Generate again to get the interactive version back.`;
+      }
     }
   }
 
@@ -1059,7 +1080,20 @@
       return;
     }
     if (!dashboards.length) {
+      // Empty settings could mean "nothing generated here yet" — or it
+      // could mean a dashboard picture is sitting right there on a sheet
+      // and its settings just never survived a close without saving (see
+      // dashboard-io.js#countOrphanedDashboardShapes). Best-effort only:
+      // a failure here just falls back to the plain empty message rather
+      // than blocking the view on a second read.
+      let orphanCount = 0;
+      try {
+        orphanCount = await host.countOrphanedDashboardShapes();
+      } catch (e) { /* fall back to the plain empty message below */ }
       els.listEmpty.hidden = false;
+      els.listEmpty.textContent = orphanCount > 0
+        ? `There ${orphanCount === 1 ? 'is' : 'are'} ${orphanCount} dashboard picture${orphanCount === 1 ? '' : 's'} on the sheets, but no saved settings to match — the workbook was likely closed without saving after ${orphanCount === 1 ? 'it was' : 'they were'} placed. ${orphanCount === 1 ? 'It is' : 'They are'} still there; generate the dashboard again to get the interactive version back.`
+        : 'No dashboards yet. Select a range and generate one.';
       return;
     }
     for (const d of dashboards) {

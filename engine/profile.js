@@ -32,25 +32,41 @@
     return m;
   }
 
+  // Direction plus step shape, in one pass: `maxAbsStep`/`stepCount` (over
+  // consecutive non-equal values, row order, nulls skipped) exist so
+  // engine/roles.js's identifier rule can tell "increments like a counter"
+  // (small, bounded steps) apart from "happens to be sorted by this value"
+  // (steps as large and irregular as the data itself) — direction alone
+  // can't distinguish those two, and a table sorted by a metric is exactly
+  // as monotonic as a real ID column.
   function monotonicity(orderedValues) {
     let increasing = true;
     let decreasing = true;
     let sawPair = false;
     let prev = null;
+    let maxAbsStep = 0;
+    let stepCount = 0;
     for (const v of orderedValues) {
       if (v == null) continue;
       if (prev != null) {
         sawPair = true;
         if (v < prev) increasing = false;
         if (v > prev) decreasing = false;
+        const step = Math.abs(v - prev);
+        if (step > 0) {
+          stepCount++;
+          if (step > maxAbsStep) maxAbsStep = step;
+        }
       }
       prev = v;
     }
-    if (!sawPair) return 'none';
-    if (increasing && decreasing) return 'constant';
-    if (increasing) return 'increasing';
-    if (decreasing) return 'decreasing';
-    return 'none';
+    let direction = 'none';
+    if (sawPair) {
+      if (increasing && decreasing) direction = 'constant';
+      else if (increasing) direction = 'increasing';
+      else if (decreasing) direction = 'decreasing';
+    }
+    return { direction, maxAbsStep, stepCount };
   }
 
   /**
@@ -112,6 +128,7 @@
     const uniqueRatio = rowCount ? uniqueCount / rowCount : 0;
 
     const textLengths = nonEmpty.map((c) => c.raw.trim().length);
+    const monotonicInfo = monotonicity(numericValues);
 
     const profile = {
       name,
@@ -129,7 +146,13 @@
       max: hasNumeric ? maxOf(numericSample) : null,
       isInteger: hasNumeric ? numericSample.every((v) => Number.isInteger(v)) : null,
       mean: hasNumeric ? mean(numericSample) : null,
-      monotonic: monotonicity(numericValues),
+      monotonic: monotonicInfo.direction,
+      // Largest |step| between consecutive non-equal values in row order,
+      // and how many such steps exist — see monotonicity()'s doc comment.
+      // null/0 (not just 0) when there's no direction at all, so a caller
+      // can tell "no monotonic run to measure" apart from "ran, step was 0."
+      monotonicMaxStep: monotonicInfo.direction === 'none' ? null : monotonicInfo.maxAbsStep,
+      monotonicStepCount: monotonicInfo.stepCount,
       avgTextLength: textLengths.length ? mean(textLengths) : null,
       looksNumericButTextFormatted,
     };

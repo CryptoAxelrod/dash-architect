@@ -62,6 +62,7 @@ h1 { margin: 0; font-size: 19px; line-height: 1.1; font-weight: 760; letter-spac
 /* ---------- Startup dashboard list (view-setup, above step 1) ---------- */
 .startup-list { padding-top: 14px; margin-bottom: 10px; border-bottom: 1px solid var(--rule); padding-bottom: 16px; }
 .startup-list h2 { margin: 0 0 8px; font-size: 15px; font-weight: 650; }
+.startup-orphan-hint { margin: -2px 0 16px; padding: 8px 10px; background: #FFF6D6; border: 1px solid #E0B400; border-radius: 6px; font-size: 12px; font-weight: 600; color: #6B5400; }
 
 /* ---------- Steps (setup view) ---------- */
 main { flex: 1; display: flex; flex-direction: column; min-height: 0; }

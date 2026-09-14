@@ -21,9 +21,19 @@
     identifier: {
       uniqueRatioThreshold: 0.95, // integer column above this unique ratio looks like an id
       // uniqueRatio is noise below this many rows — see Rule 2's comment.
-      // Doesn't gate the monotonic-sequence signal, which isn't statistical.
       minRows: 30,
       nameKeywords: ['id', 'код', 'артикул', 'номер', '№', 'sku', 'индекс'],
+      // Below this many rows a monotonic run is too short to trust its step
+      // pattern (need at least a few steps to tell "counter" from "noise").
+      monotonicMinRows: 5,
+      // A counter-like step stays small and bounded no matter how large the
+      // column's own values get (an auto-increment ID jumps by 1, or by a
+      // few when rows were deleted); a table merely sorted by some other
+      // metric has steps as large as that metric's own values. 20 is a
+      // generous ceiling for "gap between consecutive IDs," and comfortably
+      // below the smallest step any of this project's fixtures show for a
+      // real measure sorted ascending — see fixtures/13_sorted_by_metric.csv.
+      monotonicMaxStep: 20,
     },
     year: {
       min: 1900,
@@ -89,7 +99,7 @@
    * @returns {object} {role, aggregation, confidence, rule, reason, ...}
    */
   function classifyColumn(profile) {
-    const { name, valueType, cellFormat, isInteger, uniqueRatio, uniqueCount, min, max, rowCount, monotonic } = profile;
+    const { name, valueType, cellFormat, isInteger, uniqueRatio, uniqueCount, min, max, rowCount, monotonic, monotonicMaxStep, monotonicStepCount } = profile;
 
     // Rule 0 (not in the spec's numbered list): a column with no data at all
     // can't be classified by content — exclude it outright rather than
@@ -126,47 +136,62 @@
     //
     // Three independent signals, any one of which is enough:
     //
-    //  a) name alone (`idKeyword`) — a column literally called "ID"/"код"/
-    //     "SKU"/etc. is treated as an identifier regardless of its values or
-    //     type (text SKUs included) — unchanged from before.
-    //  b) a strictly monotonic integer sequence (`monotonicSequence`) — row
-    //     order climbing (or falling) end to end, gaps allowed, is a
-    //     structural property of sequentially-assigned IDs that a handful of
-    //     rows is already enough evidence for, unlike uniqueness (see (c)).
-    //     No row-count floor: this signal isn't statistical, so it isn't
-    //     noisy on a small table the way a bare ratio is. Explicitly not
-    //     triggered by a year-shaped range: a fiscal-year column sorted
-    //     chronologically (2024, 2024, 2024, 2025, ...) is exactly as
-    //     "monotonic, gaps allowed, repeats allowed" as a real ID sequence
-    //     — Rule 3 below is the more specific, correct call on that shape
-    //     and must not lose to this rule just because it runs second.
-    //  c) high uniqueness (`idByUniquenessAndName`) — kept only as a
-    //     fallback for a non-sequential integer column, and only combined
-    //     with BOTH a size floor and a matching name: uniqueRatio alone is
-    //     not informative below ~30 rows (five distinct amounts out of five
-    //     rows is just what money looks like, not evidence of an identifier
-    //     — see fixtures/11_minimal_two_columns.csv), and without a name
-    //     match a purely-unique integer column (a postal code, an ad
-    //     impression count) is at least as likely to be a real measure as
-    //     an id. Note this branch's name requirement means it can only ever
-    //     fire alongside (a) — it exists to keep the "how unique, how many
-    //     rows" bar explicit and independently tunable, not because it adds
-    //     a case (a) doesn't already cover.
+    //  a) name alone, for a NON-numeric column (`idByNameAlone`) — a text
+    //     column literally called "SKU"/"Order ID"/etc. is treated as an
+    //     identifier regardless of its values — there's no numeric signal
+    //     to weigh the name against, so the name is conclusive on its own.
+    //     For a NUMERIC column, name alone is deliberately NOT enough on
+    //     its own (see (c)) — "Сумма №" or "Invoice №" naming an ordinary
+    //     amount column on a handful of rows is a perfectly plausible
+    //     header, not evidence of an identifier by itself.
+    //  b) a counter-like monotonic integer sequence (`monotonicSequence`) —
+    //     row order climbing (or falling) end to end, gaps allowed, WITH
+    //     small, bounded steps (`monotonicMaxStep`, from engine/profile.js).
+    //     Direction alone isn't enough: a table merely sorted by some
+    //     measure is exactly as monotonic as a real ID column, but its
+    //     steps are as large and irregular as the measure's own values,
+    //     where a real auto-increment ID's steps stay small no matter how
+    //     large the ID values themselves get — see
+    //     fixtures/13_sorted_by_metric.csv. `monotonicMinRows` guards
+    //     against trusting a step pattern measured from only 1-2 steps.
+    //     Explicitly not triggered by a year-shaped range: a fiscal-year
+    //     column sorted chronologically (2024, 2024, 2024, 2025, ...) is
+    //     exactly as "monotonic, small steps, repeats allowed" as a real ID
+    //     sequence — Rule 3 below is the more specific, correct call on
+    //     that shape and must not lose to this rule just because it runs
+    //     second.
+    //  c) high uniqueness AND a matching name, for a NUMERIC column
+    //     (`idByNameAndStats`) — the fallback for a non-sequential numeric
+    //     identifier, gated on both a size floor and uniqueness: uniqueRatio
+    //     alone is not informative below ~30 rows (five distinct amounts
+    //     out of five rows is just what money looks like, not evidence of
+    //     an identifier — see fixtures/11_minimal_two_columns.csv and
+    //     fixtures/12_numeric_name_only_trap.csv), and without a name match
+    //     a purely-unique integer column (a postal code, an ad impression
+    //     count) is at least as likely to be a real measure as an id.
     const idKeyword = matchesAny(name, CONFIG.identifier.nameKeywords);
+    const isNumericInteger = valueType === 'number' && isInteger;
+    const idByNameAlone = !!idKeyword && !isNumericInteger;
+
     const looksLikeYearRange =
       min != null && max != null && min >= CONFIG.year.min && max <= CONFIG.year.max && uniqueCount < CONFIG.year.maxUnique;
     const monotonicSequence =
-      valueType === 'number' && isInteger && !looksLikeYearRange && (monotonic === 'increasing' || monotonic === 'decreasing');
-    const idByUniquenessAndName =
-      valueType === 'number' && isInteger && !!idKeyword &&
+      isNumericInteger && !looksLikeYearRange &&
+      (monotonic === 'increasing' || monotonic === 'decreasing') &&
+      rowCount >= CONFIG.identifier.monotonicMinRows &&
+      monotonicStepCount >= 2 &&
+      monotonicMaxStep != null && monotonicMaxStep <= CONFIG.identifier.monotonicMaxStep;
+
+    const idByNameAndStats =
+      isNumericInteger && !!idKeyword &&
       rowCount >= CONFIG.identifier.minRows &&
       uniqueRatio > CONFIG.identifier.uniqueRatioThreshold;
 
-    if (idKeyword || monotonicSequence || idByUniquenessAndName) {
-      const reason = idKeyword
+    if (idByNameAlone || monotonicSequence || idByNameAndStats) {
+      const reason = idByNameAlone
         ? `column name contains "${idKeyword}" — looks like an identifier`
         : monotonicSequence
-          ? `integer column, values ${monotonic} in row order — looks like a sequential identifier`
+          ? `integer column, values ${monotonic} in row order with steps no larger than ${CONFIG.identifier.monotonicMaxStep} — looks like a sequential identifier`
           : `integer column, ${pct(uniqueRatio)} unique across ${rowCount} rows with a matching name — looks like an identifier`;
       return decide('excluded', null, CONFIDENCE.HEURISTIC, 'identifier', reason, {
         matchedKeyword: idKeyword || null,

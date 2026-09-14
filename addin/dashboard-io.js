@@ -124,6 +124,45 @@
   }
 
   /**
+   * Counts dashboard-named shapes (any sheet) that have no matching
+   * workbook.settings entry — the signature left behind when a workbook was
+   * closed without saving after "Place on sheet": the picture itself is a
+   * normal shape, already part of the file the instant it was inserted, but
+   * the settings write that went with it in the same generateAndPlace call
+   * only ever lived in the in-memory session and never reached the file.
+   * Used to tell that apart from "nothing was ever generated here" — see
+   * addin/taskpane.js#showList.
+   * @param {Excel.RequestContext} context
+   * @returns {Promise<number>}
+   */
+  async function countOrphanedDashboardShapes(context) {
+    const settings = context.workbook.settings;
+    settings.load('items/key');
+    const worksheets = context.workbook.worksheets;
+    worksheets.load('items');
+    await context.sync();
+
+    const shapeCollections = worksheets.items.map((sheet) => {
+      const shapes = sheet.shapes;
+      shapes.load('items/name');
+      return shapes;
+    });
+    await context.sync();
+
+    const savedShapeNames = new Set(
+      settings.items.filter((s) => isDashboardSettingsKey(s.key)).map((s) => shapeNameFromSettingsKey(s.key))
+    );
+
+    let orphanCount = 0;
+    for (const shapes of shapeCollections) {
+      for (const shape of shapes.items) {
+        if (isDashboardShapeName(shape.name) && !savedShapeNames.has(shape.name)) orphanCount++;
+      }
+    }
+    return orphanCount;
+  }
+
+  /**
    * Full "generate" step: place the image and save its settings in one
    * call. `render` is injected (render/share.js#renderPngBase64) rather
    * than required directly, so this file stays free of a hard dependency
@@ -156,6 +195,7 @@
     listDashboards,
     loadDashboardSettings,
     deleteDashboardSettings,
+    countOrphanedDashboardShapes,
     generateAndPlace,
   };
 });
