@@ -45,6 +45,7 @@
     settingsToggle: document.getElementById('dlg-settings-toggle'),
     settingsPanel: document.getElementById('dlg-settings'),
     settingsClose: document.getElementById('dlg-settings-close'),
+    settingsSwitch: document.getElementById('dlg-settings-switch'),
     settingsThemePicker: document.getElementById('dlg-theme-picker'),
     settingsKpis: document.getElementById('dlg-settings-kpis'),
     settingsCharts: document.getElementById('dlg-settings-charts'),
@@ -195,6 +196,7 @@
     const metaWithConfig = Object.assign({}, currentMeta, { widgetConfig });
     controller = window.DashRenderDom.mount(els.mount, currentAnalysis, activeTheme(), metaWithConfig, {
       onPlaceOnSheet,
+      onOpenMapping,
       initialState,
       onStateChange: pushState,
     });
@@ -221,6 +223,45 @@
       const requestId = Msg.sendChunked(parentSend, Msg.KIND.PLACE_ON_SHEET, Object.assign({}, spec, { theme, palette }));
       pendingPlacements.set(requestId, { resolve });
     });
+  }
+
+  // ---- open mapping (from the empty-state widget, render/dom.js#renderEmptyState) ----
+  const pendingOpenMapping = new Map();
+  const openMappingResultReceiver = Msg.createChunkReceiver(Msg.KIND.OPEN_MAPPING_RESULT, (result, requestId) => {
+    const pending = pendingOpenMapping.get(requestId);
+    if (!pending) return;
+    pendingOpenMapping.delete(requestId);
+    pending.resolve(result);
+  });
+
+  function onOpenMapping() {
+    return new Promise((resolve) => {
+      const requestId = Msg.sendChunked(parentSend, Msg.KIND.OPEN_MAPPING_REQUEST, currentRawState());
+      pendingOpenMapping.set(requestId, { resolve });
+    });
+  }
+
+  // ---- switch to another dashboard (settings panel's "Other dashboards") ----
+  const pendingListDashboards = new Map();
+  const listDashboardsResultReceiver = Msg.createChunkReceiver(Msg.KIND.LIST_DASHBOARDS_RESULT, (result, requestId) => {
+    const pending = pendingListDashboards.get(requestId);
+    if (!pending) return;
+    pendingListDashboards.delete(requestId);
+    pending.resolve(result);
+  });
+
+  function requestOtherDashboards() {
+    return new Promise((resolve) => {
+      const requestId = Msg.sendChunked(parentSend, Msg.KIND.LIST_DASHBOARDS_REQUEST, {});
+      pendingListDashboards.set(requestId, { resolve });
+    });
+  }
+
+  // One-way: the task pane closes this dialog and opens a fresh one for the
+  // target (addin/taskpane.js's openDialog / handleSwitchDashboardRequest) —
+  // nothing to wait for here.
+  function requestSwitchDashboard(shapeName) {
+    Msg.sendChunked(parentSend, Msg.KIND.SWITCH_DASHBOARD_REQUEST, { shapeName });
   }
 
   // ---- refresh ----
@@ -468,7 +509,37 @@
   els.cfgTable.addEventListener('change', () => applyWidgetConfig({ showTable: els.cfgTable.checked }));
   els.cfgFilters.addEventListener('change', () => applyWidgetConfig({ showFilters: els.cfgFilters.checked }));
 
-  els.settingsToggle.addEventListener('click', () => { syncSettingsPanel(); els.settingsPanel.hidden = false; });
+  // First section in the panel (see dashboard-dialog.html) — a round trip
+  // to the task pane, so it's only fetched when the panel actually opens,
+  // not on every settings change that remounts the dashboard underneath it
+  // (syncSettingsPanel, called from mountLive, stays purely in-memory).
+  function syncOtherDashboardsSection() {
+    els.settingsSwitch.innerHTML = '<p class="settings-empty-hint">Loading…</p>';
+    requestOtherDashboards().then((result) => {
+      els.settingsSwitch.innerHTML = '';
+      if (!result.ok) {
+        els.settingsSwitch.innerHTML = `<p class="settings-empty-hint">Could not load: ${result.error}</p>`;
+        return;
+      }
+      if (!result.dashboards.length) {
+        els.settingsSwitch.innerHTML = '<p class="settings-empty-hint">No other dashboards in this workbook.</p>';
+        return;
+      }
+      for (const d of result.dashboards) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'switch-dash-item';
+        const when = d.generatedAt ? new Date(d.generatedAt).toLocaleString() : 'unknown time';
+        btn.innerHTML = `<span class="switch-dash-title"></span><span class="switch-dash-meta"></span>`;
+        btn.querySelector('.switch-dash-title').textContent = d.title;
+        btn.querySelector('.switch-dash-meta').textContent = `${d.sourceAddress} · generated ${when}`;
+        btn.addEventListener('click', () => requestSwitchDashboard(d.shapeName));
+        els.settingsSwitch.appendChild(btn);
+      }
+    });
+  }
+
+  els.settingsToggle.addEventListener('click', () => { syncSettingsPanel(); syncOtherDashboardsSection(); els.settingsPanel.hidden = false; });
   els.settingsClose.addEventListener('click', () => { els.settingsPanel.hidden = true; });
 
   // ---- scale-to-fit ----
@@ -486,7 +557,7 @@
   function start() {
     setStatus('Loading dashboard data…');
     initTransport(
-      (raw) => { dataReceiver(raw) || placeResultReceiver(raw) || refreshResultReceiver(raw) || changeRangeResultReceiver(raw); },
+      (raw) => { dataReceiver(raw) || placeResultReceiver(raw) || openMappingResultReceiver(raw) || listDashboardsResultReceiver(raw) || refreshResultReceiver(raw) || changeRangeResultReceiver(raw); },
       () => Msg.sendChunked(parentSend, Msg.KIND.READY, {})
     );
   }

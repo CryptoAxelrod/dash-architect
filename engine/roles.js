@@ -20,6 +20,9 @@
   const CONFIG = {
     identifier: {
       uniqueRatioThreshold: 0.95, // integer column above this unique ratio looks like an id
+      // uniqueRatio is noise below this many rows — see Rule 2's comment.
+      // Doesn't gate the monotonic-sequence signal, which isn't statistical.
+      minRows: 30,
       nameKeywords: ['id', 'код', 'артикул', 'номер', '№', 'sku', 'индекс'],
     },
     year: {
@@ -86,7 +89,7 @@
    * @returns {object} {role, aggregation, confidence, rule, reason, ...}
    */
   function classifyColumn(profile) {
-    const { name, valueType, cellFormat, isInteger, uniqueRatio, uniqueCount, min, max, rowCount } = profile;
+    const { name, valueType, cellFormat, isInteger, uniqueRatio, uniqueCount, min, max, rowCount, monotonic } = profile;
 
     // Rule 0 (not in the spec's numbered list): a column with no data at all
     // can't be classified by content — exclude it outright rather than
@@ -95,7 +98,13 @@
       return decide('excluded', null, CONFIDENCE.DEFAULT, 'empty_column', 'column has no values — nothing to classify');
     }
 
-    // --- Rule 1: cell format wins over every name-based heuristic below ---
+    // --- Rule 1: cell format wins over every name-based heuristic below,
+    // Rule 2 (identifier) included — each branch here returns unconditionally,
+    // so a currency/percentage-formatted column can never fall through to be
+    // reclassified as an identifier no matter what its name or uniqueness
+    // look like. Keep every branch below an unconditional `return`; an
+    // early-exit that merely fell through on some condition would silently
+    // break this guarantee. ---
     if (cellFormat === 'date') {
       return decide('time', null, CONFIDENCE.FORMAT, 'format_date', 'date-formatted column — treated as a time dimension', {
         granularity: 'day',
@@ -114,12 +123,51 @@
     }
 
     // --- Rule 2: looks like an identifier ---
-    const idByUniqueness = valueType === 'number' && isInteger && uniqueRatio > CONFIG.identifier.uniqueRatioThreshold;
+    //
+    // Three independent signals, any one of which is enough:
+    //
+    //  a) name alone (`idKeyword`) — a column literally called "ID"/"код"/
+    //     "SKU"/etc. is treated as an identifier regardless of its values or
+    //     type (text SKUs included) — unchanged from before.
+    //  b) a strictly monotonic integer sequence (`monotonicSequence`) — row
+    //     order climbing (or falling) end to end, gaps allowed, is a
+    //     structural property of sequentially-assigned IDs that a handful of
+    //     rows is already enough evidence for, unlike uniqueness (see (c)).
+    //     No row-count floor: this signal isn't statistical, so it isn't
+    //     noisy on a small table the way a bare ratio is. Explicitly not
+    //     triggered by a year-shaped range: a fiscal-year column sorted
+    //     chronologically (2024, 2024, 2024, 2025, ...) is exactly as
+    //     "monotonic, gaps allowed, repeats allowed" as a real ID sequence
+    //     — Rule 3 below is the more specific, correct call on that shape
+    //     and must not lose to this rule just because it runs second.
+    //  c) high uniqueness (`idByUniquenessAndName`) — kept only as a
+    //     fallback for a non-sequential integer column, and only combined
+    //     with BOTH a size floor and a matching name: uniqueRatio alone is
+    //     not informative below ~30 rows (five distinct amounts out of five
+    //     rows is just what money looks like, not evidence of an identifier
+    //     — see fixtures/11_minimal_two_columns.csv), and without a name
+    //     match a purely-unique integer column (a postal code, an ad
+    //     impression count) is at least as likely to be a real measure as
+    //     an id. Note this branch's name requirement means it can only ever
+    //     fire alongside (a) — it exists to keep the "how unique, how many
+    //     rows" bar explicit and independently tunable, not because it adds
+    //     a case (a) doesn't already cover.
     const idKeyword = matchesAny(name, CONFIG.identifier.nameKeywords);
-    if (idByUniqueness || idKeyword) {
+    const looksLikeYearRange =
+      min != null && max != null && min >= CONFIG.year.min && max <= CONFIG.year.max && uniqueCount < CONFIG.year.maxUnique;
+    const monotonicSequence =
+      valueType === 'number' && isInteger && !looksLikeYearRange && (monotonic === 'increasing' || monotonic === 'decreasing');
+    const idByUniquenessAndName =
+      valueType === 'number' && isInteger && !!idKeyword &&
+      rowCount >= CONFIG.identifier.minRows &&
+      uniqueRatio > CONFIG.identifier.uniqueRatioThreshold;
+
+    if (idKeyword || monotonicSequence || idByUniquenessAndName) {
       const reason = idKeyword
         ? `column name contains "${idKeyword}" — looks like an identifier`
-        : `integer column, ${pct(uniqueRatio)} unique values — looks like an identifier`;
+        : monotonicSequence
+          ? `integer column, values ${monotonic} in row order — looks like a sequential identifier`
+          : `integer column, ${pct(uniqueRatio)} unique across ${rowCount} rows with a matching name — looks like an identifier`;
       return decide('excluded', null, CONFIDENCE.HEURISTIC, 'identifier', reason, {
         matchedKeyword: idKeyword || null,
       });

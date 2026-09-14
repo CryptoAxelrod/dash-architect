@@ -163,6 +163,69 @@
     return wrap;
   }
 
+  // Stands in for the whole KPI/chart block when classification found no
+  // measure column at all (engine/layout.js#buildSkeleton) — the old
+  // behavior was to render nothing there, a dead end that looked like a
+  // bug with no way out even though the fix (correcting one column's role)
+  // takes seconds. `onOpenMapping`, when given, sends the dialog's current
+  // state to the task pane and asks it to reopen the mapping screen
+  // (addin/dashboard-dialog.js's onOpenMapping / addin/taskpane.js's
+  // handleOpenMappingRequest); omitted in frozen mode and anywhere else
+  // reclassifying isn't possible, in which case only the explanation shows.
+  function renderEmptyState(w, theme, onOpenMapping) {
+    const c = theme.color;
+    const wrap = el('div', { style: Object.assign(absRect(w.rect), theme.card.style === 'panel'
+      ? { background: c.panel, border: `${theme.card.borderWidth}px solid ${c.panelBorder}`, borderRadius: px(theme.radius.lg), boxSizing: 'border-box' }
+      : { border: `${theme.card.borderWidth}px dashed ${c.rule}`, boxSizing: 'border-box' }) });
+    const inner = el('div', {
+      style: {
+        height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        textAlign: 'center', padding: px(theme.spacing.lg), gap: px(theme.spacing.sm), boxSizing: 'border-box',
+      },
+    });
+    inner.appendChild(el('p', {
+      style: { margin: 0, font: `600 ${theme.type.panelTitle}px ${theme.font.family}`, color: c.ink },
+    }, 'No measures to show'));
+    inner.appendChild(el('p', {
+      style: { margin: 0, font: `${theme.type.subtitle}px ${theme.font.family}`, color: c.muted, maxWidth: '480px' },
+    }, "None of this data's columns were classified as a measure, so there's nothing to chart or total. This is usually one column's role guessed wrong — fix it on the mapping screen."));
+    if (onOpenMapping) {
+      const btn = el('button', {
+        type: 'button',
+        style: {
+          marginTop: px(theme.spacing.xs), font: `13px ${theme.font.family}`, fontWeight: 600,
+          padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.accent}`,
+          background: c.accent, color: c.panel, cursor: 'pointer',
+        },
+      }, 'Review column roles');
+      btn.addEventListener('click', async () => {
+        if (btn.dataset.busy) return;
+        btn.dataset.busy = '1';
+        const original = btn.textContent;
+        btn.textContent = 'Waiting for role review…';
+        btn.disabled = true;
+        try {
+          const result = await onOpenMapping();
+          // On success a fresh DATA message already replaced this whole
+          // mount — nothing here still exists to reset. Only undo the busy
+          // state on a cancel/failure, where this widget is still live.
+          if (!result || !result.ok) {
+            btn.textContent = original;
+            btn.disabled = false;
+            delete btn.dataset.busy;
+          }
+        } catch (e) {
+          btn.textContent = original;
+          btn.disabled = false;
+          delete btn.dataset.busy;
+        }
+      });
+      inner.appendChild(btn);
+    }
+    wrap.appendChild(inner);
+    return wrap;
+  }
+
   function regionTooltipText(widget, region, theme) {
     const valueStr = Format.formatMeasureValue(widget, region.value, { negativeStyle: theme.negativeStyle });
     const label = region.series ? `${region.series} — ${region.category}` : region.category;
@@ -257,6 +320,8 @@
    * @param {object} [opts]
    * @param {(spec:{canvas,widgets}) => Promise<{ok:boolean, shapeName?:string, error?:string}>} [opts.onPlaceOnSheet]
    *   omitted entirely in every host except the dialog (addin/dashboard-dialog.js) — see renderPlaceButton's doc comment.
+   * @param {() => Promise<{ok:boolean, error?:string}>} [opts.onOpenMapping]
+   *   only present when a widgetConfig with zero measures is mounted — see renderEmptyState's doc comment.
    * @param {{activeFilters?:Object<string,string[]>, sort?:object}} [opts.initialState]
    *   seeds `state` instead of the empty defaults — used when remounting to
    *   apply a widgetConfig change, a Refresh, or a Change data range without
@@ -267,6 +332,7 @@
    */
   function mount(container, analysis, theme, meta, opts) {
     const onPlaceOnSheet = opts && opts.onPlaceOnSheet;
+    const onOpenMapping = opts && opts.onOpenMapping;
     const onStateChange = opts && opts.onStateChange;
     const initial = (opts && opts.initialState) || {};
     const Engine = window.DashEngine; // browser-global; Node callers pass their own via a future param if ever needed
@@ -323,6 +389,7 @@
       if (w.type === 'filterBar') return renderFilterBar(w);
       if (w.type === 'kpi') return renderKpi(w, state.theme);
       if (w.type === 'table') return renderTable(w);
+      if (w.type === 'emptyState') return renderEmptyState(w, state.theme, onOpenMapping);
       return renderChartWidget(w, state.theme, addToFilter);
     }
 
@@ -524,6 +591,10 @@
       if (w.type === 'filterBar') return renderReadOnlyFilterBar(w);
       if (w.type === 'kpi') return renderKpi(w, state.theme);
       if (w.type === 'table') return renderFrozenTable(w);
+      // No onOpenMapping here — a frozen snapshot has no source data left to
+      // reclassify (see this file's header comment); the message alone still
+      // explains the blank space honestly instead of just leaving it empty.
+      if (w.type === 'emptyState') return renderEmptyState(w, state.theme, null);
       return renderChartWidget(w, state.theme);
     }
 

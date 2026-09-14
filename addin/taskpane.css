@@ -59,6 +59,10 @@ h1 { margin: 0; font-size: 19px; line-height: 1.1; font-weight: 760; letter-spac
 .debug-probe { position: absolute; left: 4px; top: 4px; z-index: 999; padding: 4px 7px; background: #FFE066; color: #17231F; border: 1px solid #B98900; font: 11px/1.2 ui-monospace, Menlo, Consolas, monospace; cursor: pointer; }
 .debug-probe[data-hit="1"] { background: #7FD79A; border-color: #1D6F4C; }
 
+/* ---------- Startup dashboard list (view-setup, above step 1) ---------- */
+.startup-list { padding-top: 14px; margin-bottom: 10px; border-bottom: 1px solid var(--rule); padding-bottom: 16px; }
+.startup-list h2 { margin: 0 0 8px; font-size: 15px; font-weight: 650; }
+
 /* ---------- Steps (setup view) ---------- */
 main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .view { flex: 1; min-height: 0; overflow-y: auto; }

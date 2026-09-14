@@ -28,12 +28,12 @@
   const FONT_STACK = '"Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
 
   // `chart.seriesColors` below is each theme's *default* series palette —
-  // render/palettes.js's "Meridian", the same values, single source of
+  // render/palettes.js's "Ocean", the same values, single source of
   // truth. A caller that wants a different palette overrides this via
   // Palettes.withPalette(theme, paletteId) rather than this file growing a
   // second, redundant color list per theme — see palettes.js's doc comment
   // for why palette and theme are separate tokens in the first place.
-  const LIGHT_SERIES = Palettes.PALETTES.meridian.light;
+  const LIGHT_SERIES = Palettes.PALETTES.ocean.light;
 
   const light = {
     id: 'light',
@@ -63,7 +63,7 @@
   // up in lightness and pulled down in saturation from `light`'s — a flat
   // hue-inversion would either wash out against the dark ground or, at full
   // saturation, read as neon, which is the exact effect being avoided.
-  const DARK_SERIES = Palettes.PALETTES.meridian.dark;
+  const DARK_SERIES = Palettes.PALETTES.ocean.dark;
 
   const dark = {
     id: 'dark',
@@ -92,7 +92,7 @@
   // rows/cards fit before scrolling — "for pasting into a report to
   // management." Same accent hue as `light`, just slightly less saturated
   // to read as restrained rather than a website's bright chart green.
-  const REPORT_SERIES = Palettes.PALETTES.meridian.report;
+  const REPORT_SERIES = Palettes.PALETTES.ocean.report;
 
   const report = {
     id: 'report',
@@ -121,7 +121,7 @@
   // primary signal, color as a secondary one — so the dashboard still
   // reads correctly in black-and-white print and for colorblind viewers.
   // Negative numbers use accounting-style parentheses rather than color.
-  const PRINT_SERIES = Palettes.PALETTES.meridian.print;
+  const PRINT_SERIES = Palettes.PALETTES.ocean.print;
 
   const print = {
     id: 'print',

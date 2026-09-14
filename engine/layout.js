@@ -37,6 +37,9 @@
     },
     overview: { gap: 32, kpiFraction: 5 / 12 },
     chart: { height: 264, gridGap: 20, maxCount: 4, maxDimensionCardinality: 12 },
+    // Shown instead of the KPI/chart block when classification produced
+    // zero measure columns at all — see buildSkeleton below.
+    emptyState: { height: 160 },
     table: { referenceRowHeight: 40, headerHeight: 40, footerHeight: 48, maxReferenceRows: 12, minReferenceRows: 3 },
   };
 
@@ -108,7 +111,20 @@
   function buildSkeleton(columns, rowCount, widgetConfig) {
     const cfg = Object.assign({ enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
     const sel = selectColumns(columns);
-    let chartPlan = cfg.showCharts ? planCharts(sel) : [];
+    // Not the same thing as "chartPlan/kpiMeasures ended up empty" below —
+    // that can also happen when the user has simply unchecked every KPI and
+    // chart in the settings panel, which is a deliberate, temporary display
+    // choice, not a data problem. `hasAnyMeasure` is measured before any of
+    // cfg's filtering, so it only tracks whether classification itself
+    // produced zero measure-role columns — see the `!hasAnyMeasure` branch
+    // below and CLAUDE.md-adjacent SPEC.md notes on this. Gating planCharts
+    // on it also closes a latent crash: without it, a dimension-only table
+    // (chart-eligible dimensions but no measures) would still get bar-chart
+    // plans from planCharts below with no measure to fall back to, and
+    // chartWidgetSkeleton's `plan.measure || primaryMeasure` would try to
+    // read `.name` off a null primaryMeasure.
+    const hasAnyMeasure = sel.measures.length > 0;
+    let chartPlan = cfg.showCharts && hasAnyMeasure ? planCharts(sel) : [];
     if (cfg.enabledCharts) chartPlan = chartPlan.filter((p) => cfg.enabledCharts.includes(p.id));
     if (cfg.chartOverrides) chartPlan = chartPlan.map((p) => applyChartOverride(p, sel, cfg.chartOverrides[p.id]));
     const kpiCandidates = cfg.enabledKpis ? sel.measures.filter((m) => cfg.enabledKpis.includes(m.name)) : sel.measures;
@@ -180,6 +196,18 @@
       }
 
       y += rowH + LAYOUT.gap;
+    } else if (!hasAnyMeasure) {
+      // Classification found no measure-role column anywhere in the source
+      // — not "the user hid every KPI/chart" (that's the branch above,
+      // simply skipped when both are empty by choice) but "there is
+      // nothing to show a KPI or chart for at all." addin/dashboard-dialog.js
+      // renders this with a way back to the mapping screen — see CLAUDE.md §7:
+      // a column landing here is almost always one auto-classification got
+      // wrong (e.g. a small table's identifier heuristic misfiring, or a
+      // user override that went too far), fixable in seconds without
+      // regenerating anything.
+      widgets.push({ id: 'empty-state', type: 'emptyState', rect: { x: x0, y, w: W, h: LAYOUT.emptyState.height } });
+      y += LAYOUT.emptyState.height + LAYOUT.gap;
     }
 
     const restCharts = chartPlan.slice(1);

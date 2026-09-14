@@ -53,9 +53,10 @@
     roleOverrides: null, // {colName: {role, chartEligible}} | null — from the mapping screen, reapplied on every Refresh
     title: null,
     theme: 'light', // chosen on the pre-generate theme/palette step; sticky across dashboards as a "last picked" default
-    palette: 'meridian',
+    palette: 'ocean',
     lastDialogState: null, // {activeFilters, sort, theme, widgetConfig} from the dialog's STATE_UPDATE — survives the dialog closing
     result: null,
+    currentShapeName: null, // shapeName of the dashboard currently open in the dialog, once it has one (placed, or reopened from the list) — excluded from the settings panel's "switch to" list (addin/dashboard-dialog.js's "Other dashboards" section)
     pendingChangeRange: null, // {dlg, raw, requestId} while pickingFor === 'change-range'
     sourceBeforeChangeRange: null,
     rangeBeforeChangeRange: null,
@@ -257,6 +258,7 @@
       openStartOver: $('open-start-over'),
       doneSub: $('done-sub'), doneSaveHint: $('done-save-hint'), doneViewList: $('done-view-list'), doneStartOver: $('done-start-over'),
       listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
+      startupList: $('startup-list'), startupDashItems: $('startup-dash-items'),
       mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
       viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
       debugPanel: $('debug-panel'), debugLog: $('debug-log'),
@@ -283,6 +285,28 @@
     }
 
     renderProgress();
+    refreshStartupList();
+  }
+
+  // Shows saved dashboards directly on the startup screen, above "Choose
+  // your data" — not gated behind the hamburger menu's full list view,
+  // which stays around for later (mid-flow) access. An empty workbook
+  // shows the normal creation screen exactly as before; nothing else on
+  // view-setup moves or hides to make room for this. Re-run after any
+  // moment the set of saved dashboards could have changed (startOver, after
+  // a fresh placement) so it never shows stale contents.
+  async function refreshStartupList() {
+    let dashboards = [];
+    try {
+      dashboards = await host.listDashboards();
+    } catch (e) {
+      return; // leave the startup list hidden — the hamburger menu's list view still reports read failures on its own
+    }
+    els.startupList.hidden = !dashboards.length;
+    els.startupDashItems.innerHTML = '';
+    for (const d of dashboards) {
+      els.startupDashItems.appendChild(renderDashListItem(d));
+    }
   }
 
   /* ---------- range picking ---------- */
@@ -645,6 +669,7 @@
     state.roleOverrides = null;
     state.lastDialogState = null;
     state.result = null;
+    state.currentShapeName = null;
     els.buildError.hidden = true;
     setFooterState('idle');
     syncIdleFooter();
@@ -734,8 +759,12 @@
     const stateReceiver = Msg.createChunkReceiver(Msg.KIND.STATE_UPDATE, (raw) => { state.lastDialogState = raw; });
     const refreshReceiver = Msg.createChunkReceiver(Msg.KIND.REFRESH_REQUEST, (raw, id) => handleRefreshRequest(dlg, raw, id));
     const changeRangeReceiver = Msg.createChunkReceiver(Msg.KIND.CHANGE_RANGE_REQUEST, (raw, id) => handleChangeRangeRequest(dlg, raw, id));
+    const openMappingReceiver = Msg.createChunkReceiver(Msg.KIND.OPEN_MAPPING_REQUEST, (raw, id) => handleOpenMappingRequest(dlg, raw, id));
+    const listDashboardsReceiver = Msg.createChunkReceiver(Msg.KIND.LIST_DASHBOARDS_REQUEST, (raw, id) => handleListDashboardsRequest(dlg, id));
+    const switchDashboardReceiver = Msg.createChunkReceiver(Msg.KIND.SWITCH_DASHBOARD_REQUEST, (raw) => handleSwitchDashboardRequest(raw));
     dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
-      readyReceiver(arg.message) || placeReceiver(arg.message) || stateReceiver(arg.message) || refreshReceiver(arg.message) || changeRangeReceiver(arg.message);
+      readyReceiver(arg.message) || placeReceiver(arg.message) || stateReceiver(arg.message) || refreshReceiver(arg.message) || changeRangeReceiver(arg.message) || openMappingReceiver(arg.message) ||
+        listDashboardsReceiver(arg.message) || switchDashboardReceiver(arg.message);
     });
 
     await readyPromise;
@@ -755,6 +784,7 @@
   }
 
   async function openRestoredDashboard(d) {
+    state.currentShapeName = d.shapeName;
     await showList();
     try {
       const dlg = await openDialog(dialogUrl());
@@ -783,6 +813,7 @@
       const theme = window.DashRenderPalettes.withPalette(baseTheme, spec.palette);
       const currentSpec = { canvas: spec.canvas, widgets: spec.widgets };
       const columnsByName = window.DashEngine.Aggregate.byName(state.analysis.columns);
+      logDebug('place-on-sheet: rasterizing…');
       const pngBase64 = await window.DashRenderShare.renderPngBase64(currentSpec, theme, columnsByName, { scale: 2 });
 
       const snapshot = window.DashEngine.Layout.buildStorageSnapshot(currentSpec, state.analysis.columns);
@@ -790,12 +821,24 @@
       // "Filter only" mapping choice used to go silent on the next restore.
       const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
 
+      // Two distinct Office.js writes happen inside host.placeDashboard
+      // (addin/dashboard-io.js#generateAndPlace: place the image, then save
+      // its settings) sharing one Excel.run — a failure in either one
+      // rejects this whole call and lands in the catch below, never
+      // silently. Logged as one step here (not two) because from this
+      // side of the call they're not individually observable; if a report
+      // ever again says "list is empty, no error shown," these debug lines
+      // plus the try/catch below are the two facts to check first: did we
+      // get this far, and did the catch actually fire.
+      logDebug('place-on-sheet: rasterized, placing image + saving settings…');
       const { shapeName } = await host.placeDashboard({
         pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), title: state.title,
         theme: spec.theme, palette: spec.palette,
       });
+      logDebug(`place-on-sheet: host.placeDashboard resolved — shape "${shapeName}".`);
       return { ok: true, shapeName };
     } catch (err) {
+      logDebug(`place-on-sheet: threw — ${err && err.message ? err.message : String(err)}`);
       return { ok: false, error: err && err.message ? err.message : String(err) };
     }
   }
@@ -808,6 +851,8 @@
     Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.PLACE_ON_SHEET_RESULT, result, null, requestId);
     if (result.ok) {
       state.result = { shapeName: result.shapeName };
+      state.currentShapeName = result.shapeName;
+      refreshStartupList();
       els.doneSub.textContent = state.excel
         ? `It's on the sheet as a picture named "${result.shapeName}". Anyone opening the file just sees a picture; with this add-in, reopening it — from "Dashboards in this workbook" or by clicking it — opens the interactive version again in a dialog, without re-reading the sheet.`
         : `Preview mode (no Excel host here): "${result.shapeName}" was saved in memory instead of workbook.settings. Open "Dashboards in this workbook" below to see the restored, no-recompute view.`;
@@ -847,6 +892,75 @@
     } catch (err) {
       Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.REFRESH_RESULT, { ok: false, error: err && err.message ? err.message : String(err) }, null, requestId);
       logDebug(`refresh: failed — ${err && err.message ? err.message : err}`);
+    }
+  }
+
+  // The empty-state widget (render/dom.js#renderEmptyState) asked to reopen
+  // the mapping screen for the dashboard already showing in the dialog —
+  // classification produced zero measures, almost always one column's role
+  // guessed wrong rather than a real absence of numbers (see engine/roles.js's
+  // identifier rule and CLAUDE.md §7). Reuses state.analysis — the currently
+  // effective, override-applied analysis — so the screen shows exactly the
+  // roles the dialog has right now, not bare auto-detection from scratch.
+  function handleOpenMappingRequest(dlg, raw, requestId) {
+    logDebug(`open-mapping: request received (${requestId}).`);
+    const Msg = window.DashDialogMessaging;
+    const respond = (payload) => Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.OPEN_MAPPING_RESULT, payload, null, requestId);
+    showMappingScreen(
+      state.analysis,
+      (analysis, overrides) => {
+        state.roleOverrides = overrides !== undefined ? overrides : state.roleOverrides;
+        state.analysis = analysis;
+        const meta = { title: state.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+        sendDataToDialog(dlg, { mode: 'live', analysis, meta, seedState: raw, source: sourceLabel() });
+        respond({ ok: true });
+        showView('setup');
+        setFooterState('open');
+        logDebug('open-mapping: applied new roles, sent fresh data.');
+      },
+      () => {
+        respond({ ok: false, error: 'cancelled' });
+        showView('setup');
+        setFooterState('open');
+        logDebug('open-mapping: cancelled.');
+      }
+    );
+  }
+
+  // Settings panel's "Other dashboards" section (first item in that menu —
+  // see addin/dashboard-dialog.js) asked for the current list, minus
+  // whichever dashboard this dialog is already showing.
+  async function handleListDashboardsRequest(dlg, requestId) {
+    logDebug(`list-dashboards: request received (${requestId}).`);
+    const Msg = window.DashDialogMessaging;
+    const respond = (payload) => Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.LIST_DASHBOARDS_RESULT, payload, null, requestId);
+    try {
+      const dashboards = await host.listDashboards();
+      const others = dashboards
+        .filter((d) => d.shapeName !== state.currentShapeName)
+        .map((d) => ({ shapeName: d.shapeName, title: d.payload.title || d.shapeName, sourceAddress: d.payload.sourceAddress || '', generatedAt: d.payload.generatedAt || null }));
+      respond({ ok: true, dashboards: others });
+    } catch (err) {
+      respond({ ok: false, error: err && err.message ? err.message : String(err) });
+    }
+  }
+
+  // The user picked a different saved dashboard from the settings panel.
+  // openRestoredDashboard closes the currently-open dialog itself (see
+  // openDialog's "only one dialog at a time") — nothing to send back to a
+  // dialog instance that's about to stop existing.
+  async function handleSwitchDashboardRequest(raw) {
+    logDebug(`switch-dashboard: request received for "${raw.shapeName}".`);
+    try {
+      const dashboards = await host.listDashboards();
+      const target = dashboards.find((d) => d.shapeName === raw.shapeName);
+      if (!target) {
+        logDebug(`switch-dashboard: "${raw.shapeName}" no longer exists.`);
+        return;
+      }
+      await openRestoredDashboard(target);
+    } catch (err) {
+      logDebug(`switch-dashboard: failed — ${err && err.message ? err.message : err}`);
     }
   }
 
@@ -1011,6 +1125,7 @@
     state.roleOverrides = null;
     state.lastDialogState = null;
     state.result = null;
+    state.currentShapeName = null;
     if (currentDialog) {
       try { currentDialog.close(); } catch (e) { /* already gone */ }
       currentDialog = null;
@@ -1022,5 +1137,6 @@
     showView('setup');
     setFooterState('idle');
     window.scrollTo(0, 0);
+    refreshStartupList();
   }
 })();

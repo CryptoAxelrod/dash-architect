@@ -13,24 +13,44 @@
  * `light`: a color that reads on a near-white ground and one that reads on
  * a near-black one are rarely the same value at a different lightness.
  *
- * The first three colors of every palette/theme combination share one hue
- * triple (amber/azure/teal — see HUES below) chosen and verified against a
- * standard deuteranopia simulation (Brettel/Viénot-style LMS confusion
- * matrix) specifically so they stay distinguishable under red-green color
- * blindness, the most common type — deliberately avoiding the classic
- * red-vs-green confusion pair for the positions a 1-3 series chart
- * actually uses. Colors 4-6 (violet/vermillion/olive) extend the palette
- * for higher-cardinality charts (grouped bars, donuts) but are not
- * independently verified against every other color — CLAUDE.md's
- * determinism rule doesn't require a hue wheel to solve an NP-hard
- * covering problem, and the explicit requirement was "the first three."
+ * Four palettes, four genuinely different dominant hues — not four
+ * saturation levels of the same one (an earlier version of this file
+ * picked a single amber/azure/teal hue triple and only varied
+ * saturation/lightness across "palettes," which meant every chart still
+ * read as "that one hue family" regardless of which was picked):
+ *   - Ocean:    blue-dominant (hues ~186-237°)
+ *   - Meadow:   green-dominant (hues ~117-176°)
+ *   - Ochre:    warm amber/rust/terracotta-dominant (hues ~16-53°)
+ *   - Spectrum: deliberately multi-hue, for charts with many series where
+ *               a single dominant hue would leave categories looking alike
+ * None of the four use a pure, fully-saturated spectral hue (Ocean/Meadow/
+ * Ochre keep saturation ~0.36-0.60, Spectrum ~0.37-0.52) — a pure "screen
+ * green" or "traffic orange" reads as cheap against a light background;
+ * every color here is deepened or muted instead.
  *
- * `print`'s variant is intentionally near-grayscale for all four palettes:
- * render/svg.js's print theme already tells series apart by hatch pattern
- * + line dash + marker shape (see render/themes.js's comment on `print`),
- * with color as a secondary, half-tone-safe signal — a palette swap there
- * only nudges overall contrast/darkness, never hue, so it can't undermine
- * the black-and-white-safe design.
+ * Every palette/theme's first three colors are verified against a standard
+ * deuteranopia simulation (Brettel/Viénot-style LMS confusion matrix) to
+ * stay distinguishable under red-green color blindness, the most common
+ * type — Ocean/Meadow/Ochre lean on this simulation's one genuinely
+ * reliable lever, lightness separation (deuteranopia leaves luminance
+ * perception intact; it collapses hue judgment on the red-green axis, which
+ * is exactly the axis a tight same-family hue triple like "blue vs.
+ * blue-violet" mostly differs along and so cannot safely rely on — see the
+ * dated comment in the project history for the failed first attempt), with
+ * a supporting hue drift of up to ±35° (±22° for Ochre, to stay warm rather
+ * than drifting into yellow-green) so the six colors within one palette
+ * aren't a flat lightness ramp either. Spectrum verifies the same first-
+ * three deuteranopia requirement across its widely-spread hues, plus every
+ * *adjacent* pair in all six (the order charts actually render them in) for
+ * plain color distance, so two neighbors in a legend never blend together.
+ *
+ * `print`'s variant is intentionally near-grayscale for all four palettes
+ * (a faint hue tint per identity, not a real color) — render/svg.js's print
+ * theme already tells series apart by hatch pattern + line dash + marker
+ * shape (see render/themes.js's comment on `print`), with color as a
+ * secondary, half-tone-safe signal; a palette swap there only nudges
+ * overall contrast/darkness, never hue, so it can't undermine the
+ * black-and-white-safe design.
  *
  * Pure JS, no dependencies.
  */
@@ -44,37 +64,37 @@
   'use strict';
 
   const PALETTES = {
-    meridian: {
-      id: 'meridian', name: 'Meridian',
-      light: ['#936639', '#395093', '#39937C', '#6D3993', '#934839', '#399348'],
-      dark: ['#CAA37D', '#7D90CA', '#7DCAB6', '#AA7DCA', '#CA897D', '#7DCA89'],
-      report: ['#825C35', '#354982', '#35826F', '#623582', '#824235', '#358242'],
-      print: ['#111111', '#3D3D3D', '#6B6B6B', '#8F8F8F', '#4C4C4C', '#2E2E2E'],
+    ocean: {
+      id: 'ocean', name: 'Ocean',
+      light: ['#1C356D', '#3D52A3', '#329AC7', '#203A6B', '#427EBB', '#264B83'],
+      dark: ['#585FD0', '#BDD3E5', '#7194C6', '#B0E0E5', '#577FCB', '#B7C3E8'],
+      report: ['#182C5B', '#35488E', '#2C87AF', '#1B305A', '#3A6FA5', '#204070'],
+      print: ['#111213', '#3A3D41', '#656A72', '#888E96', '#484C51', '#292B2E'],
     },
-    harbor: {
-      id: 'harbor', name: 'Harbor',
-      light: ['#8E5C29', '#29438E', '#298E75', '#64298E', '#8E3A29', '#298E3A'],
-      dark: ['#CF9E6E', '#6E86CF', '#6ECFB6', '#A66ECF', '#CF7E6E', '#6ECF7E'],
-      report: ['#7C5227', '#273C7C', '#277C67', '#59277C', '#7C3527', '#277C35'],
-      print: ['#050505', '#303030', '#5E5E5E', '#828282', '#404040', '#212121'],
+    meadow: {
+      id: 'meadow', name: 'Meadow',
+      light: ['#26513F', '#3C8654', '#469E92', '#1F774F', '#2CA384', '#225E45'],
+      dark: ['#56D4C9', '#BEEABC', '#59C375', '#B6DDC4', '#68BB82', '#B0EAD8'],
+      report: ['#1B4427', '#22803D', '#389A93', '#1E5435', '#308F64', '#1D7029'],
+      print: ['#111312', '#3A413D', '#65726B', '#88968E', '#48514C', '#292E2B'],
     },
-    ember: {
-      id: 'ember', name: 'Ember',
-      light: ['#AB7036', '#3653AB', '#36AB8D', '#7A36AB', '#AB4936', '#36AB49'],
-      dark: ['#D2A87F', '#7F93D2', '#7FD2BD', '#AF7FD2', '#D28D7F', '#7FD28D'],
-      report: ['#976635', '#354E97', '#35977E', '#6E3597', '#974535', '#359745'],
-      print: ['#13110F', '#433D37', '#766B60', '#9A8F84', '#544C45', '#322E29'],
+    ochre: {
+      id: 'ochre', name: 'Ochre',
+      light: ['#84552A', '#5B2C1A', '#B98131', '#815126', '#B48F38', '#75552A'],
+      dark: ['#D8AB84', '#CD7450', '#EAD2B0', '#D8A77A', '#E8D9B6', '#D0AB7B'],
+      report: ['#894227', '#9B8F3C', '#592C17', '#9A683F', '#46371D', '#9A6B34'],
+      print: ['#131211', '#413E3A', '#726C65', '#969088', '#514D48', '#2E2C29'],
     },
-    slate: {
-      id: 'slate', name: 'Slate',
-      light: ['#9D754D', '#4D619D', '#4D9D89', '#7C4D9D', '#9D5B4D', '#4D9D5B'],
-      dark: ['#BE9974', '#7487BE', '#74BEAB', '#9F74BE', '#BE8174', '#74BE81'],
-      report: ['#906B47', '#475990', '#47907D', '#714790', '#905347', '#479053'],
-      print: ['#303030', '#5C5C5C', '#8A8A8A', '#ADADAD', '#6B6B6B', '#4C4C4C'],
+    spectrum: {
+      id: 'spectrum', name: 'Spectrum',
+      light: ['#456DB7', '#B66843', '#1E5641', '#A539B4', '#592527', '#4298B3'],
+      dark: ['#C1D3EB', '#C87252', '#59C18C', '#E7C8E7', '#CA767B', '#82C3CB'],
+      report: ['#3D60A1', '#A05B3B', '#194735', '#91329E', '#4A1E20', '#3A859D'],
+      print: ['#121212', '#3D3D3D', '#6B6B6B', '#8F8F8F', '#4C4C4C', '#2B2B2B'],
     },
   };
 
-  const DEFAULT_PALETTE = 'meridian';
+  const DEFAULT_PALETTE = 'ocean';
 
   function seriesColorsFor(paletteId, themeId) {
     const palette = PALETTES[paletteId] || PALETTES[DEFAULT_PALETTE];

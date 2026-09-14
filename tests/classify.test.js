@@ -15,9 +15,17 @@
  *   git diff tests/snapshots/
  *
  * fixtures/06_messy_headers.csv (no header-row detection yet — see
- * SPEC.md §6) and fixtures/10_large_volume.csv (60k rows) are snapshotted
+ * SPEC.md §6), fixtures/10_large_volume.csv (60k rows), and
+ * fixtures/11_minimal_two_columns.csv (5 rows, Date + a numeric column
+ * whose 5 values happen to all be distinct — Rule 2's uniqueRatio > 0.95
+ * identifier check has no row-count floor, so it currently misclassifies
+ * that column as an excluded identifier rather than a measure; see the
+ * diagnosis in the conversation this fixture came from) are snapshotted
  * like every other fixture: whatever the classifier currently does on them
- * is what's pinned, "correct" or not — that's the point of a snapshot.
+ * is what's pinned, "correct" or not — that's the point of a snapshot. A
+ * future fix to the identifier rule's row-count handling will need this
+ * snapshot regenerated, which is exactly the point: CLAUDE.md §6 requires
+ * that update to happen visibly, in the same change, not silently.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');

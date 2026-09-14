@@ -36,10 +36,10 @@
     "name": "Impressions",
     "valueType": "number",
     "cellFormat": null,
-    "role": "excluded",
-    "aggregation": null,
-    "confidence": "medium",
-    "rule": "identifier",
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
     "weightBase": null,
     "needsWeightBase": false
   },
@@ -47,10 +47,10 @@
     "name": "Clicks",
     "valueType": "number",
     "cellFormat": null,
-    "role": "excluded",
-    "aggregation": null,
-    "confidence": "medium",
-    "rule": "identifier",
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
     "weightBase": null,
     "needsWeightBase": false
   },
@@ -84,7 +84,10 @@
     "aggregation": "weighted",
     "confidence": "medium",
     "rule": "fraction_like",
-    "weightBase": { "numerator": "Clicks", "denominator": "Impressions" },
+    "weightBase": {
+      "numerator": "Clicks",
+      "denominator": "Impressions"
+    },
     "needsWeightBase": false
   },
   {
@@ -95,7 +98,10 @@
     "aggregation": "weighted",
     "confidence": "medium",
     "rule": "fraction_like",
-    "weightBase": { "numerator": "Conversions", "denominator": "Clicks" },
+    "weightBase": {
+      "numerator": "Conversions",
+      "denominator": "Clicks"
+    },
     "needsWeightBase": false
   },
   {

@@ -19,7 +19,7 @@
   'use strict';
 
   const THEME_ORDER = ['light', 'dark', 'report', 'print'];
-  const PALETTE_LABELS = { meridian: 'Meridian', harbor: 'Harbor', ember: 'Ember', slate: 'Slate' };
+  const PALETTE_LABELS = { ocean: 'Ocean', meadow: 'Meadow', ochre: 'Ochre', spectrum: 'Spectrum' };
 
   function sampleLayoutSpec() {
     return {

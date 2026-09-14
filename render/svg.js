@@ -211,6 +211,29 @@
     return g(out);
   }
 
+  // Static counterpart of render/dom.js#renderEmptyState — same message,
+  // no button (a flat picture can't open the mapping screen; the task pane
+  // is where that lives). Shown instead of the KPI/chart block when
+  // classification found no measure column at all — see
+  // engine/layout.js#buildSkeleton.
+  function renderEmptyState(widget, theme) {
+    const c = theme.color;
+    const r = widget.rect;
+    let out = panelChrome(r, theme, null);
+    const cx = r.x + r.w / 2;
+    const midY = r.y + r.h / 2;
+    out += text(cx, midY - 10, 'No measures to show', {
+      fill: c.ink, 'font-size': theme.type.panelTitle, 'font-weight': 650, 'text-anchor': 'middle', 'font-family': theme.font.family,
+    });
+    out += text(cx, midY + 14, "None of this data's columns were classified as a measure —", {
+      fill: c.muted, 'font-size': theme.type.subtitle, 'text-anchor': 'middle', 'font-family': theme.font.family,
+    });
+    out += text(cx, midY + 14 + theme.type.subtitle + 4, 'fix the column role on the mapping screen.', {
+      fill: c.muted, 'font-size': theme.type.subtitle, 'text-anchor': 'middle', 'font-family': theme.font.family,
+    });
+    return g(out);
+  }
+
   // --- charts --------------------------------------------------------
 
   function plotArea(rect_, theme, hasTitle) {
@@ -596,6 +619,7 @@
     if (widget.type === 'filterBar') return renderFilterBar(widget, theme);
     if (widget.type === 'kpi') return renderKpi(widget, theme);
     if (widget.type === 'table') return renderTable(widget, theme, dataColumns);
+    if (widget.type === 'emptyState') return renderEmptyState(widget, theme);
     return renderChart(widget, theme).markup; // hit regions are dom.js's concern, not the flattened PNG's
   }
 

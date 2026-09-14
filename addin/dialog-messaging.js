@@ -55,6 +55,30 @@
     // names are an exact match for the old one — see engine/reconcile.js)
     // or { ok:false, error } (including a plain cancel)
     CHANGE_RANGE_RESULT: 'change-range-result',
+    // dialog -> parent, sent when the user clicks "Review column roles" on
+    // the empty-state widget (render/dom.js#renderEmptyState — shown when
+    // classification found zero measures). Same shape as STATE_UPDATE: "let
+    // the user fix column roles in the task pane's mapping screen for the
+    // source I'm already showing; when they're done, send me fresh data the
+    // same way Refresh does."
+    OPEN_MAPPING_REQUEST: 'open-mapping-request',
+    // parent -> dialog: { ok:true } (a fresh DATA message follows separately)
+    // or { ok:false, error } (including a plain cancel)
+    OPEN_MAPPING_RESULT: 'open-mapping-result',
+    // dialog -> parent, sent when the settings panel's "Other dashboards"
+    // section is (re)opened — { } (no payload needed, the parent already
+    // knows which dashboard is currently open).
+    LIST_DASHBOARDS_REQUEST: 'list-dashboards-request',
+    // parent -> dialog: { ok:true, dashboards:[{shapeName,title,sourceAddress,generatedAt}] }
+    // (excludes whichever dashboard is currently open) or { ok:false, error }
+    LIST_DASHBOARDS_RESULT: 'list-dashboards-result',
+    // dialog -> parent: { shapeName } — the user picked a different saved
+    // dashboard from the settings panel's list. One-way: success means the
+    // parent opens a fresh dialog for it (closing this one in the process,
+    // per addin/taskpane.js's openDialog — see its "only one dialog at a
+    // time" comment), so there's nothing for this dialog instance to hear
+    // back; a target that no longer exists just logs on the parent side.
+    SWITCH_DASHBOARD_REQUEST: 'switch-dashboard-request',
   };
 
   // Conservative default, not a measured failure point of the real Office

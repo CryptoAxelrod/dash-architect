@@ -91,11 +91,11 @@
       widgetConfig = Object.assign({}, widgetConfig, { chartOverrides: Object.keys(cleaned).length ? cleaned : null });
     }
 
-    // 'meridian' mirrors render/palettes.js#DEFAULT_PALETTE as a literal —
+    // 'ocean' mirrors render/palettes.js#DEFAULT_PALETTE as a literal —
     // engine stays free of any dependency on /render (CLAUDE.md §2's spirit
     // extended to the render layer too), same reason 'light' above isn't
     // imported from render/themes.js either.
-    return { activeFilters, sort, theme: rawState.theme || 'light', palette: rawState.palette || 'meridian', widgetConfig };
+    return { activeFilters, sort, theme: rawState.theme || 'light', palette: rawState.palette || 'ocean', widgetConfig };
   }
 
   /**

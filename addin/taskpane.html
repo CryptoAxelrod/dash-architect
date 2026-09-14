@@ -49,6 +49,14 @@
 
   <!-- Step 1: pick a range -->
   <section class="view" id="view-setup">
+    <!-- Shown only when the workbook already has saved dashboards — see
+         addin/taskpane.js#refreshStartupList. Sits above the "choose data"
+         step rather than replacing it: creating a new dashboard is always
+         one scroll away, never hidden behind this. -->
+    <div class="startup-list" id="startup-list" hidden>
+      <h2>Dashboards in this workbook</h2>
+      <ul class="dash-list" id="startup-dash-items"></ul>
+    </div>
     <section class="step">
       <span class="step-num"><span class="n">1</span><svg class="tick" viewBox="0 0 12 12"><path d="M2.5 6.3 5 8.6 9.5 3.6"/></svg></span>
       <div class="step-body">

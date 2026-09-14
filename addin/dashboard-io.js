@@ -67,11 +67,11 @@
    * already baked into `layoutSpec.widgets` by the snapshot itself, but
    * *color* is resolved from theme+palette at render time
    * (render/dom.js#mountFrozen) — without these, a restored dashboard would
-   * silently render in light/meridian regardless of what it looked like
+   * silently render in light/ocean regardless of what it looked like
    * when placed.
    */
   function buildStoragePayload({ snapshot, mapping, sourceAddress, title, theme, palette }) {
-    return { version: 1, generatedAt: new Date().toISOString(), sourceAddress, title, mapping, theme: theme || 'light', palette: palette || 'meridian', layoutSpec: snapshot };
+    return { version: 1, generatedAt: new Date().toISOString(), sourceAddress, title, mapping, theme: theme || 'light', palette: palette || 'ocean', layoutSpec: snapshot };
   }
 
   // --- Office.js: everything below this line touches context.workbook ---
