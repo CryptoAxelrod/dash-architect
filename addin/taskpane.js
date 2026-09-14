@@ -706,8 +706,17 @@
      needs Excel for — placing the image, refreshing, changing the source —
      it asks this pane to do. See SPEC.md for the full protocol writeup. ---------- */
 
+  // TEMPORARY cache-busting query string — see addin/version.js. Without
+  // this, Excel's WebView can serve a cached dashboard-dialog.html (and,
+  // transitively, whatever it links to — see the same fix applied to every
+  // <script>/<link> tag in addin/taskpane.html and addin/dashboard-dialog.html,
+  // and to the two taskpane.html URLs in addin/manifest.xml) even after the
+  // task pane itself reloaded fresh. Remove the `?v=...` here along with
+  // the rest of version.js's plumbing before release.
   function dialogUrl() {
-    return new URL('dashboard-dialog.html', location.href).href;
+    const url = new URL('dashboard-dialog.html', location.href);
+    if (window.DASH_BUILD_VERSION != null) url.searchParams.set('v', window.DASH_BUILD_VERSION);
+    return url.href;
   }
 
   function openDialogExcel(url) {
