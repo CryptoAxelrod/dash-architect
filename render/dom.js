@@ -69,15 +69,69 @@
   // --- stateless widget renderers: header/KPI/chart carry every number
   // they need inline, live or frozen, so one implementation covers both. --
 
-  function renderHeader(w, theme, shareButton, placeButton) {
+  // `onRename` is only passed by mount() (live mode) — a frozen/restored
+  // dashboard (mountFrozen) has no save path for a new title (no source, no
+  // "Place image on sheet"), so it never gets the pencil at all rather than
+  // offering an edit box that can't actually persist.
+  function renderHeader(w, theme, shareButton, placeButton, onRename) {
     const c = theme.color;
     const wrap = el('div', { style: absRect(w.rect) });
     const rightWidth = placeButton ? '300px' : '140px';
     const titleCol = el('div', { style: { position: 'absolute', left: 0, top: 0, right: rightWidth } });
-    titleCol.appendChild(el('h1', { style: { margin: 0, font: `700 ${theme.type.h1}px ${theme.font.family}`, color: c.ink, letterSpacing: '-0.01em' } }, w.title || ''));
-    if (w.subtitle) {
-      titleCol.appendChild(el('p', { style: { margin: '4px 0 0', font: `${theme.type.subtitle}px ${theme.font.family}`, color: c.muted } }, w.subtitle));
+
+    function subtitleEl() {
+      return w.subtitle ? el('p', { style: { margin: '4px 0 0', font: `${theme.type.subtitle}px ${theme.font.family}`, color: c.muted } }, w.subtitle) : null;
     }
+
+    function showDisplay() {
+      titleCol.innerHTML = '';
+      const row = el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } });
+      row.appendChild(el('h1', { style: { margin: 0, font: `700 ${theme.type.h1}px ${theme.font.family}`, color: c.ink, letterSpacing: '-0.01em' } }, w.title || ''));
+      if (onRename) {
+        row.appendChild(el('button', {
+          type: 'button', title: 'Rename dashboard', 'aria-label': 'Rename dashboard',
+          style: {
+            border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', lineHeight: 1,
+            color: c.muted, font: `${Math.round(theme.type.h1 * 0.5)}px ${theme.font.family}`, flex: 'none',
+          },
+          onclick: showEdit,
+        }, '✎'));
+      }
+      titleCol.appendChild(row);
+      const sub = subtitleEl();
+      if (sub) titleCol.appendChild(sub);
+    }
+
+    function showEdit() {
+      titleCol.innerHTML = '';
+      let settled = false;
+      const input = el('input', {
+        type: 'text', value: w.title || '', 'aria-label': 'Dashboard name',
+        style: {
+          margin: 0, font: `700 ${theme.type.h1}px ${theme.font.family}`, color: c.ink, letterSpacing: '-0.01em',
+          border: `1px solid ${c.accent}`, borderRadius: '6px', padding: '1px 6px', width: '100%', boxSizing: 'border-box',
+          background: c.panel,
+        },
+      });
+      function finish(shouldCommit) {
+        if (settled) return;
+        settled = true;
+        if (shouldCommit) onRename(input.value);
+        else showDisplay();
+      }
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      input.addEventListener('blur', () => finish(true));
+      titleCol.appendChild(input);
+      const sub = subtitleEl();
+      if (sub) titleCol.appendChild(sub);
+      input.focus();
+      input.select();
+    }
+
+    showDisplay();
     wrap.appendChild(titleCol);
     if (placeButton) { placeButton.style.right = '108px'; wrap.appendChild(placeButton); }
     if (shareButton) wrap.appendChild(shareButton);
@@ -90,8 +144,8 @@
       type: 'button',
       style: {
         position: 'absolute', right: 0, top: 0, font: `13px ${theme.font.family}`, fontWeight: 600,
-        padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.accent}`,
-        background: c.accent, color: c.panel, cursor: 'pointer',
+        padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.rule}`,
+        background: 'transparent', color: c.ink, cursor: 'pointer',
       },
     }, 'Copy image');
     btn.addEventListener('click', async () => {
@@ -117,12 +171,18 @@
   // module stays host-agnostic like the rest of render/dom.js.
   function renderPlaceButton(theme, getSpecForShare, onPlaceOnSheet) {
     const c = theme.color;
+    // Styled as the primary action here (accent-filled), not "Copy image" —
+    // this is the one thing that actually saves anything into the workbook;
+    // everything else about a live dashboard is ephemeral until this is
+    // clicked. See addin/taskpane.html's build-open-hint for the other half
+    // of making that obvious (the task pane's own reminder while this
+    // window is open).
     const btn = el('button', {
       type: 'button',
       style: {
         position: 'absolute', right: 0, top: 0, font: `13px ${theme.font.family}`, fontWeight: 600,
-        padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.rule}`,
-        background: 'transparent', color: c.ink, cursor: 'pointer',
+        padding: '8px 14px', borderRadius: px(theme.radius.md), border: `1px solid ${c.accent}`,
+        background: c.accent, color: c.panel, cursor: 'pointer',
       },
     }, 'Place image on sheet');
     btn.addEventListener('click', async () => {
@@ -334,6 +394,7 @@
     const onPlaceOnSheet = opts && opts.onPlaceOnSheet;
     const onOpenMapping = opts && opts.onOpenMapping;
     const onStateChange = opts && opts.onStateChange;
+    const onTitleChange = opts && opts.onTitleChange;
     const initial = (opts && opts.initialState) || {};
     const Engine = window.DashEngine; // browser-global; Node callers pass their own via a future param if ever needed
     const layoutSpec = Engine.buildLayoutSpec(analysis, meta);
@@ -348,7 +409,7 @@
     };
 
     function currentWidgets() {
-      return Engine.recomputeLayout(analysis, layoutSpec.widgets, { activeFilters: state.activeFilters, sort: state.sort });
+      return Engine.recomputeLayout(analysis, layoutSpec.widgets, { title: meta.title, subtitle: meta.subtitle, activeFilters: state.activeFilters, sort: state.sort });
     }
 
     function updateCanvasSize() {
@@ -379,12 +440,27 @@
       setState({ activeFilters: Object.assign({}, state.activeFilters, { [dimensionColumn]: next }) });
     }
 
+    // Edits `meta.title` in place (not just the one rendered widget) so a
+    // later Refresh/theme switch — which rebuilds widgets from `meta` via
+    // currentWidgets() — doesn't revert the rename. Empty/unchanged input is
+    // a silent no-op: just re-renders back to display mode.
+    function commitTitle(newTitle) {
+      const trimmed = (newTitle || '').trim();
+      if (trimmed && trimmed !== meta.title) {
+        meta = Object.assign({}, meta, { title: trimmed });
+        renderAll();
+        onTitleChange(trimmed);
+      } else {
+        renderAll();
+      }
+    }
+
     function renderWidget(w) {
       if (w.type === 'header') {
         const getSpecForShare = () => ({ canvas: layoutSpec.canvas, widgets: currentWidgets() });
         const shareButton = renderShareButton(state.theme, getSpecForShare, columnsByName);
         const placeButton = onPlaceOnSheet ? renderPlaceButton(state.theme, getSpecForShare, onPlaceOnSheet) : null;
-        return renderHeader(w, state.theme, shareButton, placeButton);
+        return renderHeader(w, state.theme, shareButton, placeButton, onTitleChange ? commitTitle : null);
       }
       if (w.type === 'filterBar') return renderFilterBar(w);
       if (w.type === 'kpi') return renderKpi(w, state.theme);

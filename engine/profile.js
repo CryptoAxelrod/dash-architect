@@ -16,6 +16,20 @@
   const NUMERIC_KINDS = new Set(['date', 'percentage', 'currency', 'number']);
   const DIGITS_ONLY = /^\d+$/;
 
+  // A column doesn't need every single cell to agree on kind to be typed as
+  // that kind — a handful of genuinely unreadable cells (a stray typo, a
+  // "N/A") shouldn't collapse an otherwise-clean date/number column to
+  // text. Below the threshold, the column still falls back to 'text' as
+  // before. Dates get a looser threshold than numbers/percentages/currency
+  // because a free-text date column has more ways for one cell to look
+  // like something else (a stray number, a note) than a numeric column
+  // does. Deliberately NOT keyed off the column's header name/language
+  // (unlike some prior-art tools) — a threshold that only kicks in for
+  // English/Russian header keywords would just move the same gap
+  // elsewhere for any other language.
+  const DATE_MATCH_THRESHOLD = 0.9;
+  const NUMERIC_MATCH_THRESHOLD = 0.95;
+
   function mean(values) {
     if (!values.length) return null;
     return values.reduce((a, b) => a + b, 0) / values.length;
@@ -88,8 +102,9 @@
 
     if (nonEmpty.length > 0) {
       const firstKind = nonEmpty[0].kind;
-      const allSameKind = nonEmpty.every((c) => c.kind === firstKind);
-      const kind = allSameKind ? firstKind : 'text';
+      const matchRatio = nonEmpty.filter((c) => c.kind === firstKind).length / nonEmpty.length;
+      const threshold = firstKind === 'date' ? DATE_MATCH_THRESHOLD : NUMERIC_MATCH_THRESHOLD;
+      const kind = NUMERIC_KINDS.has(firstKind) && matchRatio >= threshold ? firstKind : 'text';
 
       if (kind === 'date') {
         valueType = 'date';

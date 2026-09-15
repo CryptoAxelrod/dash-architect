@@ -8,6 +8,7 @@
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(
       require('./csv'),
+      require('./clean'),
       require('./values'),
       require('./profile'),
       require('./roles'),
@@ -18,6 +19,7 @@
   } else {
     root.DashEngine = factory(
       root.DashEngineCsv,
+      root.DashEngineClean,
       root.DashEngineValues,
       root.DashEngineProfile,
       root.DashEngineRoles,
@@ -26,7 +28,7 @@
       root.DashEngineReconcile
     );
   }
-})(typeof self !== 'undefined' ? self : this, function (Csv, Values, Profile, Roles, Aggregate, Layout, Reconcile) {
+})(typeof self !== 'undefined' ? self : this, function (Csv, Clean, Values, Profile, Roles, Aggregate, Layout, Reconcile) {
   'use strict';
 
   /**
@@ -77,11 +79,12 @@
    * @returns {{rowCount:number, columns: Array<{name:string, profile:object, decision:object, values:Array<number|string|null>}>}}
    */
   function analyzeTable(headers, dataRows, delimiter) {
+    const cleaned = Clean.cleanTable(headers, dataRows);
     const localeStyle = Values.localeStyleForDelimiter(delimiter || ',');
-    const rowCount = dataRows.length;
+    const rowCount = cleaned.dataRows.length;
 
-    const entries = headers.map((name, colIndex) => {
-      const cells = dataRows.map((row) => Values.parseCell(row[colIndex], localeStyle));
+    const entries = cleaned.headers.map((name, colIndex) => {
+      const cells = cleaned.dataRows.map((row) => Values.parseCell(row[colIndex], localeStyle));
       const { profile, numericValues } = Profile.buildColumnProfile(name, cells, rowCount);
       const decision = Roles.classifyColumn(profile);
       // resolveWeightBases (engine/roles.js) reads `numericValues` by that exact
