@@ -39,6 +39,11 @@
       min: 1900,
       max: 2100,
       maxUnique: 50,
+      // A real year repeats across many rows of a report; a column where
+      // almost every value is distinct isn't a year grouping, no matter
+      // how well the numbers happen to fit the 1900-2100 window — see
+      // fixtures/14_year_range_false_positive.csv.
+      maxUniqueRatio: 0.5,
     },
     fraction: {
       lowRange: { min: 0, max: 1 },
@@ -174,7 +179,9 @@
     const idByNameAlone = !!idKeyword && !isNumericInteger;
 
     const looksLikeYearRange =
-      min != null && max != null && min >= CONFIG.year.min && max <= CONFIG.year.max && uniqueCount < CONFIG.year.maxUnique;
+      valueType === 'number' && isInteger &&
+      min != null && max != null && min >= CONFIG.year.min && max <= CONFIG.year.max &&
+      uniqueCount < CONFIG.year.maxUnique && uniqueRatio <= CONFIG.year.maxUniqueRatio;
     const monotonicSequence =
       isNumericInteger && !looksLikeYearRange &&
       (monotonic === 'increasing' || monotonic === 'decreasing') &&
@@ -199,17 +206,18 @@
     }
 
     // --- Rule 3: looks like a year ---
-    if (
-      valueType === 'number' &&
-      isInteger &&
-      min != null &&
-      max != null &&
-      min >= CONFIG.year.min &&
-      max <= CONFIG.year.max &&
-      uniqueCount < CONFIG.year.maxUnique
-    ) {
+    // Same `looksLikeYearRange` Rule 2 above already computed (it exists
+    // there purely so a real year column doesn't get stolen by the
+    // monotonic-identifier signal) — reused here as the actual gate so the
+    // two can't drift apart. A real year column repeats heavily across
+    // rows (many rows share one year); a column where almost every value
+    // is distinct is not a year grouping no matter how well the numbers
+    // fit 1900-2100 — see fixtures/14_year_range_false_positive.csv, where
+    // 5 unrelated amounts that happen to land in that range used to become
+    // an invisible second "time" column instead of a measure.
+    if (looksLikeYearRange) {
       return decide('time', null, CONFIDENCE.HEURISTIC, 'year_like',
-        `integer values between ${CONFIG.year.min}-${CONFIG.year.max} with ${uniqueCount} unique values — looks like a year`,
+        `integer values between ${CONFIG.year.min}-${CONFIG.year.max} with ${uniqueCount} unique values (${pct(uniqueRatio)} of rows) — looks like a year`,
         { granularity: 'year' });
     }
 

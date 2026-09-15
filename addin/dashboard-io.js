@@ -179,6 +179,17 @@
     await placeDashboardImage(context, args.pngBase64, args.canvasSize, shapeName);
     const payload = buildStoragePayload({ snapshot: args.snapshot, mapping: args.mapping, sourceAddress: args.sourceAddress, title: args.title, theme: args.theme, palette: args.palette });
     await saveDashboardSettings(context, shapeName, payload);
+    // `saveDashboardSettings` resolving without throwing only means
+    // Excel.run's batch didn't reject — it's not proof the item is actually
+    // there to read back. Read it back in the same call rather than trust
+    // that: a "the picture is on the sheet but the list stays empty, no
+    // error anywhere" report is exactly what a write that silently didn't
+    // stick would look like, and this turns that into a visible, specific
+    // failure right here instead of a mystery days later.
+    const verify = await loadDashboardSettings(context, shapeName);
+    if (!verify) {
+      throw new Error(`Settings for "${shapeName}" did not persist — the picture is on the sheet, but nothing was saved to reopen it from the list.`);
+    }
     return { shapeName };
   }
 

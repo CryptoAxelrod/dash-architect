@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Дата",
+    "valueType": "date",
+    "cellFormat": "date",
+    "role": "time",
+    "aggregation": null,
+    "confidence": "high",
+    "rule": "format_date",
+    "weightBase": null,
+    "needsWeightBase": false
+  },
+  {
+    "name": "Сумма",
+    "valueType": "number",
+    "cellFormat": null,
+    "role": "measure",
+    "aggregation": "sum",
+    "confidence": "low",
+    "rule": "default_measure",
+    "weightBase": null,
+    "needsWeightBase": false
+  }
+]

@@ -499,6 +499,29 @@
     els.debugLog.textContent = els.debugLog.textContent ? `${els.debugLog.textContent}\n${line}` : line;
   }
 
+  // One line per column, right after auto-classification (before any saved
+  // override is layered on) — the only way to see *why* a column landed
+  // where it did without a real Excel devtools console. Deliberately dumps
+  // the exact profile fields engine/roles.js's identifier/year rules read
+  // (uniqueRatio, monotonic, monotonicMaxStep, min/max), since "which rule
+  // fired and on what evidence" is what's actually needed to fix a
+  // misclassification report — the role/rule alone isn't enough to tell
+  // whether it was uniqueness, a monotonic step, or the year-range rule.
+  function logColumnClassification(analysis) {
+    logDebug(`classified ${analysis.columns.length} column(s):`);
+    for (const col of analysis.columns) {
+      const p = col.profile;
+      const d = col.decision;
+      const uniqueRatioStr = p.uniqueRatio != null ? p.uniqueRatio.toFixed(2) : 'n/a';
+      logDebug(
+        `  "${col.name}": role=${d.role} rule=${d.rule}` +
+        ` | type=${p.valueType} cellFormat=${p.cellFormat} isInteger=${p.isInteger}` +
+        ` uniqueRatio=${uniqueRatioStr} rowCount=${p.rowCount}` +
+        ` min=${p.min} max=${p.max} monotonic=${p.monotonic} monotonicMaxStep=${p.monotonicMaxStep}`
+      );
+    }
+  }
+
   /* ---------- mapping screen (>6 columns) ---------- */
   const ROLE_OPTIONS = [
     ['measure', 'Measure'],
@@ -583,6 +606,7 @@
       setCta('Classifying columns…', 66);
       const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
       state.title = sourceTitle();
+      logColumnClassification(rawAnalysis);
 
       if (timing) {
         els.buildTiming.hidden = false;
@@ -886,6 +910,15 @@
       state.result = { shapeName: result.shapeName };
       state.currentShapeName = result.shapeName;
       refreshStartupList();
+      // Read the list back through the exact same path the UI uses,
+      // immediately after a successful placement — if this doesn't show the
+      // shape we just placed, that's the concrete fact to report back,
+      // instead of "the list is empty" with no way to tell write-side from
+      // read-side.
+      host.listDashboards().then((list) => {
+        const found = list.some((d) => d.shapeName === result.shapeName);
+        logDebug(`place-on-sheet: post-save listDashboards() has ${list.length} entr${list.length === 1 ? 'y' : 'ies'}, ${found ? 'including' : 'NOT including'} "${result.shapeName}".`);
+      }).catch((e) => logDebug(`place-on-sheet: post-save listDashboards() failed — ${e && e.message ? e.message : e}`));
       els.doneSub.textContent = state.excel
         ? `It's on the sheet as a picture named "${result.shapeName}". Anyone opening the file just sees a picture; with this add-in, reopening it — from "Dashboards in this workbook" or by clicking it — opens the interactive version again in a dialog, without re-reading the sheet.`
         : `Preview mode (no Excel host here): "${result.shapeName}" was saved in memory instead of workbook.settings. Open "Dashboards in this workbook" below to see the restored, no-recompute view.`;
