@@ -514,6 +514,11 @@
     // function only ever runs in live mode).
     function renderFilterBar(w) {
       const c = state.theme.color;
+      // Palette color, not theme.color.accent — see render/svg.js's
+      // renderFilterBar comment; filters should match the chosen palette
+      // like chart series do, not stay a fixed brand green. Always index 0
+      // (filters keep that slot even under Spectrum's multiHuePerWidget).
+      const filterColor = state.theme.chart.seriesColors[0];
       const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', overflow: 'hidden' }) });
 
       function chip(label, isActive, onclick) {
@@ -522,7 +527,7 @@
           class: 'dash-filter-chip',
           style: {
             font: `12px ${state.theme.font.family}`, padding: '6px 13px', borderRadius: px(state.theme.radius.pill),
-            border: `1px solid ${isActive ? c.accent : c.rule}`, background: isActive ? c.accent : 'transparent',
+            border: `1px solid ${isActive ? filterColor : c.rule}`, background: isActive ? filterColor : 'transparent',
             color: isActive ? c.panel : c.ink, cursor: 'pointer',
           },
           onclick,

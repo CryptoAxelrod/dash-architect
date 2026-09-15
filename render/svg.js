@@ -64,6 +64,24 @@
     dots: (id, color) => `<pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.5" fill="${color}"/></pattern>`,
   };
 
+  // The color a SINGLE-series chart (plain line/bar, not a donut or grouped
+  // bar — those already cycle theme.chart.seriesColors across their own
+  // slices/series) draws itself in. Normally every such widget shares
+  // seriesColors[0] — for Ocean/Meadow/Ochre that's the point, one cohesive
+  // hue family across the dashboard. Spectrum's whole reason to exist is to
+  // look multi-hue instead (render/palettes.js's doc comment), so when
+  // withPalette flagged it as such, each widget gets its own color from the
+  // list instead, keyed off its own stable `chart-N` id (engine/layout.js's
+  // planCharts assigns these) — offset by 1 so index 0 stays reserved for
+  // the filter chips (see renderFilterBar), matching "filters one color,
+  // chart 1 another, chart 2 another."
+  function widgetSeriesColor(theme, widget) {
+    const colors = theme.chart.seriesColors;
+    if (!theme.chart.multiHuePerWidget) return colors[0];
+    const n = parseInt(String(widget.id).split('-')[1], 10);
+    return colors[((Number.isFinite(n) ? n : 0) + 1) % colors.length];
+  }
+
   function collectHatchDefs(theme, count) {
     if (!theme.chart.textures) return { defs: '', fill: (i) => theme.chart.seriesColors[i % theme.chart.seriesColors.length] };
     const names = theme.chart.hatches || Object.keys(HATCH_DEFS);
@@ -159,6 +177,12 @@
 
   function renderFilterBar(widget, theme) {
     const c = theme.color;
+    // Palette color, not theme.color.accent — see renderLineChart's comment
+    // on why chart colors read from the palette instead of the brand accent;
+    // filters get the same treatment so they match the chosen palette too.
+    // Always index 0 (filters are reserved that slot even under Spectrum's
+    // multiHuePerWidget — see widgetSeriesColor above).
+    const filterColor = theme.chart.seriesColors[0];
     const r = widget.rect;
     const h = 30;
     const cy = r.y + r.h / 2;
@@ -170,7 +194,7 @@
       const label = active.length === 0 ? `${f.column}: All` : active.length === 1 ? `${f.column}: ${active[0]}` : `${f.column}: ${active.length} selected`;
       const w = Math.min(220, 16 + label.length * 6.4);
       const filled = active.length > 0;
-      out += rect(x, cy - h / 2, w, h, { fill: filled ? c.accent : 'none', stroke: filled ? c.accent : c.rule, 'stroke-width': theme.card.borderWidth, rx: h / 2 });
+      out += rect(x, cy - h / 2, w, h, { fill: filled ? filterColor : 'none', stroke: filled ? filterColor : c.rule, 'stroke-width': theme.card.borderWidth, rx: h / 2 });
       out += text(x + w / 2, cy + 4, label, { fill: filled ? c.panel : c.ink, 'font-size': 12.5, 'text-anchor': 'middle', 'font-family': theme.font.family });
       x += w + theme.spacing.sm;
     }
@@ -336,8 +360,9 @@
     // The chart's own series color, not theme.color.accent — a palette
     // choice must actually change what a single-series chart looks like
     // (see render/palettes.js's doc comment on why this is a separate
-    // token from the theme's brand/UI accent).
-    const seriesColor = theme.chart.seriesColors[0];
+    // token from the theme's brand/UI accent). Under Spectrum this varies
+    // per widget — see widgetSeriesColor above.
+    const seriesColor = widgetSeriesColor(theme, widget);
     for (const seg of segs) {
       const d = seg.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
       out += `<path d="${d}" fill="none" stroke="${seriesColor}" stroke-width="${theme.chart.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>`;
@@ -377,7 +402,7 @@
     // it's derived instead (Format.mixHex) rather than doubling every
     // palette's color count for a fill that's always "the series color,
     // muted" and never independently art-directed.
-    const seriesColor = theme.chart.seriesColors[0];
+    const seriesColor = widgetSeriesColor(theme, widget);
     const softColor = Format.mixHex(seriesColor, theme.color.paper, 0.62);
 
     const peakIdx = values.reduce((best, v, i) => (v != null && (best < 0 || v > values[best]) ? i : best), -1);

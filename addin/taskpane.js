@@ -1342,6 +1342,14 @@
     els.buildError.hidden = true;
     try {
       await host.deleteDashboard(d.shapeName);
+      // If this was the dashboard the "Open dashboard" footer button refers
+      // to (state.currentShapeName/state.analysis are this pane's own
+      // session state, independent of the deleted shape/storage entry — see
+      // showListDeleteConfirm's comment on the same distinction), that
+      // button must stop offering to reopen it. Otherwise clicking it still
+      // reopens the dashboard live from in-memory state, resurrecting
+      // something the user just deleted.
+      if (state.currentShapeName === d.shapeName) startNewDashboard();
       await refreshDashboardLists();
     } catch (err) {
       logDebug(`list-delete: failed — ${err && err.message ? err.message : err}`);

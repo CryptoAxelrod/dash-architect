@@ -110,7 +110,19 @@
   // render/dom.js a second "palette" parameter.
   function withPalette(theme, paletteId) {
     if (!paletteId) return theme;
-    return Object.assign({}, theme, { chart: Object.assign({}, theme.chart, { seriesColors: seriesColorsFor(paletteId, theme.id) }) });
+    return Object.assign({}, theme, {
+      chart: Object.assign({}, theme.chart, {
+        seriesColors: seriesColorsFor(paletteId, theme.id),
+        // Only Spectrum is meant to read as "many different hues" ACROSS a
+        // dashboard, not just within one multi-series chart (see this
+        // file's doc comment on why it exists at all). Ocean/Meadow/Ochre
+        // are one cohesive hue family on purpose, so every single-series
+        // widget (a plain bar/line chart, and the filter chips) shares
+        // seriesColors[0] there — render/svg.js#widgetSeriesColor is the
+        // one place this flag is read.
+        multiHuePerWidget: paletteId === 'spectrum',
+      }),
+    });
   }
 
   return { PALETTES, DEFAULT_PALETTE, seriesColorsFor, withPalette };
