@@ -49,6 +49,7 @@
     settingsThemePicker: document.getElementById('dlg-theme-picker'),
     settingsKpis: document.getElementById('dlg-settings-kpis'),
     settingsCharts: document.getElementById('dlg-settings-charts'),
+    settingsTableColumns: document.getElementById('dlg-settings-table-columns'),
     cfgTable: document.getElementById('dlg-cfg-table'),
     cfgFilters: document.getElementById('dlg-cfg-filters'),
     versionBadge: document.getElementById('dlg-version-badge'),
@@ -128,6 +129,7 @@
       theme,
       palette,
       widgetConfig,
+      title: currentMeta && currentMeta.title,
     };
   }
 
@@ -150,6 +152,11 @@
     mode = data.mode;
     if (data.mode === 'frozen') {
       els.liveActions.hidden = true;
+      // Live mode hides this row (see below) — the same theme switch lives
+      // in the settings panel there. Frozen mode has no settings panel at
+      // all (nothing to refresh/change-range/configure), so this stays the
+      // only way to switch its theme.
+      els.themes.hidden = false;
       currentAnalysis = null;
       // A restored dashboard has no live widgetConfig to derive paint from
       // — composition is already baked into layoutSpec.widgets, but color
@@ -165,6 +172,10 @@
     }
 
     els.liveActions.hidden = false;
+    // Redundant with the settings panel's own Theme & palette section
+    // (which also carries the palette, unlike this quick row) — see the
+    // frozen branch above for why frozen mode keeps it instead.
+    els.themes.hidden = true;
     if (data.source) { currentSourceLabel = data.source; els.source.textContent = data.source; }
 
     const seedReconciled = data.seedState ? Engine.Reconcile.reconcileDashboardState(data.analysis, data.seedState) : null;
@@ -203,9 +214,20 @@
       onOpenMapping,
       initialState,
       onStateChange: pushState,
+      onTitleChange: onRenameTitle,
     });
     canvasSize = controller.getLayoutSpec().canvas;
     applyScale();
+  }
+
+  // The pencil next to the title (render/dom.js#renderHeader) commits here.
+  // Nothing is written into the workbook by this alone — same rule as every
+  // other live-mode setting (theme, KPIs, chart picks): it only becomes part
+  // of the saved dashboard the next time "Place image on sheet" runs, via
+  // currentRawState()'s `title` feeding the task pane's own state.title.
+  function onRenameTitle(newTitle) {
+    currentMeta = Object.assign({}, currentMeta, { title: newTitle });
+    pushState();
   }
 
   // ---- place-on-sheet round trip ----
@@ -354,6 +376,7 @@
     renderDialogThemePicker();
     syncKpiSection();
     syncChartsSection();
+    syncTableColumnsSection();
     els.cfgTable.checked = widgetConfig.showTable !== false;
     els.cfgFilters.checked = widgetConfig.showFilters !== false;
   }
@@ -397,6 +420,42 @@
     const current = widgetConfig.enabledKpis ? new Set(widgetConfig.enabledKpis) : new Set(measures.map((m) => m.name));
     if (checked) current.add(name); else current.delete(name);
     applyWidgetConfig({ enabledKpis: [...current] });
+  }
+
+  // Every non-excluded column is table-eligible (matches
+  // engine/layout.js#selectColumns' tableColumns) — a wide source can have
+  // more of those than are worth showing in the reference table, so this
+  // lets the user drop the ones they don't need, same "enabled list"
+  // pattern as KPI cards above.
+  function syncTableColumnsSection() {
+    els.settingsTableColumns.innerHTML = '';
+    if (!currentAnalysis) return;
+    const tableColumns = currentAnalysis.columns.filter((c) => c.decision.role !== 'excluded');
+    if (!tableColumns.length) {
+      const p = document.createElement('p');
+      p.className = 'mapping-hint';
+      p.textContent = 'No columns to show.';
+      els.settingsTableColumns.appendChild(p);
+      return;
+    }
+    const enabled = widgetConfig.enabledTableColumns ? new Set(widgetConfig.enabledTableColumns) : null;
+    for (const col of tableColumns) {
+      const label = document.createElement('label');
+      label.className = 'settings-row';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = enabled ? enabled.has(col.name) : true;
+      input.addEventListener('change', () => onTableColumnToggle(col.name, input.checked, tableColumns));
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(' ' + col.name));
+      els.settingsTableColumns.appendChild(label);
+    }
+  }
+
+  function onTableColumnToggle(name, checked, tableColumns) {
+    const current = widgetConfig.enabledTableColumns ? new Set(widgetConfig.enabledTableColumns) : new Set(tableColumns.map((c) => c.name));
+    if (checked) current.add(name); else current.delete(name);
+    applyWidgetConfig({ enabledTableColumns: [...current] });
   }
 
   // Per-chart enable + (within the bounds of that chart's underlying data

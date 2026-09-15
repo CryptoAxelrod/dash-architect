@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard — Dash Architect</title>
-<link rel="stylesheet" href="dashboard-dialog.css?v=2">
-<link rel="stylesheet" href="theme-picker.css?v=2">
+<link rel="stylesheet" href="dashboard-dialog.css?v=1.6">
+<link rel="stylesheet" href="theme-picker.css?v=1.6">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -23,7 +23,6 @@
     <span class="source-label" id="dlg-source"></span>
     <span class="refreshed-at" id="dlg-refreshed-at"></span>
     <button type="button" class="tbtn" id="dlg-refresh">Refresh</button>
-    <button type="button" class="tbtn" id="dlg-change-range">Change data range</button>
     <button type="button" class="tbtn tbtn-icon" id="dlg-settings-toggle" title="Dashboard settings" aria-label="Dashboard settings">⚙</button>
   </div>
   <p class="status" id="dlg-status" hidden></p>
@@ -35,6 +34,10 @@
   <div class="settings-head">
     <h2>Dashboard settings</h2>
     <button type="button" class="tbtn" id="dlg-settings-close">Close</button>
+  </div>
+  <div class="settings-section">
+    <h3>Data source</h3>
+    <button type="button" class="tbtn" id="dlg-change-range">Change data range</button>
   </div>
   <div class="settings-section">
     <h3>Other dashboards</h3>
@@ -53,30 +56,34 @@
     <div id="dlg-settings-charts"></div>
   </div>
   <div class="settings-section">
+    <h3>Table</h3>
+    <div id="dlg-settings-table-columns"></div>
+  </div>
+  <div class="settings-section">
     <h3>Sections</h3>
     <label class="settings-row"><input type="checkbox" id="dlg-cfg-table" checked> Table</label>
     <label class="settings-row"><input type="checkbox" id="dlg-cfg-filters" checked> Filters</label>
   </div>
 </div>
 
-<script src="../engine/values.js?v=2"></script>
-<script src="../engine/csv.js?v=2"></script>
-<script src="../engine/profile.js?v=2"></script>
-<script src="../engine/roles.js?v=2"></script>
-<script src="../engine/aggregate.js?v=2"></script>
-<script src="../engine/layout.js?v=2"></script>
-<script src="../engine/reconcile.js?v=2"></script>
-<script src="../engine/index.js?v=2"></script>
-<script src="../render/format.js?v=2"></script>
-<script src="../render/palettes.js?v=2"></script>
-<script src="../render/themes.js?v=2"></script>
-<script src="../render/svg.js?v=2"></script>
-<script src="../render/share.js?v=2"></script>
-<script src="../render/dom.js?v=2"></script>
-<script src="theme-picker.js?v=2"></script>
-<script src="dialog-messaging.js?v=2"></script>
+<script src="../engine/values.js?v=1.6"></script>
+<script src="../engine/csv.js?v=1.6"></script>
+<script src="../engine/profile.js?v=1.6"></script>
+<script src="../engine/roles.js?v=1.6"></script>
+<script src="../engine/aggregate.js?v=1.6"></script>
+<script src="../engine/layout.js?v=1.6"></script>
+<script src="../engine/reconcile.js?v=1.6"></script>
+<script src="../engine/index.js?v=1.6"></script>
+<script src="../render/format.js?v=1.6"></script>
+<script src="../render/palettes.js?v=1.6"></script>
+<script src="../render/themes.js?v=1.6"></script>
+<script src="../render/svg.js?v=1.6"></script>
+<script src="../render/share.js?v=1.6"></script>
+<script src="../render/dom.js?v=1.6"></script>
+<script src="theme-picker.js?v=1.6"></script>
+<script src="dialog-messaging.js?v=1.6"></script>
 <!-- TEMPORARY — see addin/version.js; remove before release. -->
-<script src="version.js?v=2"></script>
-<script src="dashboard-dialog.js?v=2"></script>
+<script src="version.js?v=1.6"></script>
+<script src="dashboard-dialog.js?v=1.6"></script>
 </body>
 </html>

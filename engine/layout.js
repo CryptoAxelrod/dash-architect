@@ -109,7 +109,7 @@
   // parts of each widget. Positions never change with filters or theme. ---
 
   function buildSkeleton(columns, rowCount, widgetConfig) {
-    const cfg = Object.assign({ enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
+    const cfg = Object.assign({ enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
     const sel = selectColumns(columns);
     // Not the same thing as "chartPlan/kpiMeasures ended up empty" below —
     // that can also happen when the user has simply unchecked every KPI and
@@ -230,14 +230,23 @@
     }
 
     if (cfg.showTable) {
+      // Which columns show, not whether the table shows at all — a wide
+      // source can have more table-eligible columns than fit comfortably,
+      // and cfg.enabledTableColumns (settings panel's "Table" section) lets
+      // the user drop the ones they don't need without hiding the whole
+      // table. `null` (never configured) keeps every non-excluded column,
+      // same as before this existed.
+      const tableColumns = cfg.enabledTableColumns
+        ? sel.tableColumns.filter((c) => cfg.enabledTableColumns.includes(c.name))
+        : sel.tableColumns;
       const referenceRows = Math.max(Math.min(rowCount, LAYOUT.table.minReferenceRows), Math.min(rowCount, LAYOUT.table.maxReferenceRows));
       const tableH = LAYOUT.table.headerHeight + LAYOUT.table.footerHeight + referenceRows * LAYOUT.table.referenceRowHeight;
       widgets.push({
         id: 'table',
         type: 'table',
         rect: { x: x0, y, w: W, h: tableH },
-        columns: sel.tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null })),
-        defaultSort: { key: (sel.time || sel.tableColumns[0] || {}).name, dir: 'asc' },
+        columns: tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null })),
+        defaultSort: { key: (sel.time || tableColumns[0] || {}).name, dir: 'asc' },
       });
       y += tableH;
     }

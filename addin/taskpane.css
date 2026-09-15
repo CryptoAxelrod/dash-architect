@@ -151,6 +151,8 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .build-timing { margin: 8px 0 0; font-size: 11px; color: var(--faint); }
 
 .build-open-note { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+.build-open-hint { margin: 0 0 12px; padding: 8px 10px; background: #FFF6D6; border: 1px solid #E0B400; border-radius: 6px; font-size: 12px; color: #6B5400; }
+.build-open-hint strong { font-weight: 700; }
 
 .cta-row { display: flex; gap: 8px; }
 .cta-row .cta { flex: 1; }
@@ -158,6 +160,13 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 /* ---------- Theme + palette (once per generate) ---------- */
 #view-theme { padding: 4px 16px 16px; }
 #view-theme .cta { margin-top: 16px; }
+.title-field { margin-bottom: 16px; }
+.title-field label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 650; color: var(--muted); }
+.title-input {
+  width: 100%; font: inherit; font-size: 14px; font-weight: 620; padding: 9px 11px;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink);
+}
+.title-input:focus-visible { border-color: var(--green-mid); }
 
 /* ---------- Mapping screen (>6 columns) ---------- */
 #view-mapping { padding: 4px 16px 16px; }

@@ -15,6 +15,19 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // Sentinel category a blank/missing dimension value is bucketed under —
+  // in filter chips, chart grouping, and filter matching alike — instead of
+  // silently dropping those rows from every breakdown. Never appears in
+  // `column.values` itself (that stays `null`); only introduced at the
+  // point a raw value is turned into a bucket/filter key. Table cells still
+  // render a plain "—" for a blank (render/dom.js#formatCell) — that's a
+  // per-row display choice, unrelated to this aggregation-level bucketing.
+  const BLANK = '(blank)';
+
+  function bucketKey(rawValue) {
+    return rawValue == null ? BLANK : rawValue;
+  }
+
   function byName(columns) {
     const map = new Map();
     for (const c of columns) map.set(c.name, c);
@@ -44,7 +57,7 @@
     for (let i = 0; i < rowCount; i++) {
       let ok = true;
       for (const check of checks) {
-        if (!check.set.has(check.values[i])) {
+        if (!check.set.has(bucketKey(check.values[i]))) {
           ok = false;
           break;
         }
@@ -54,28 +67,28 @@
     return out;
   }
 
+  // A blank measure cell counts as 0 (not "skip this row") — it still
+  // contributes to the row count an average divides by, so a mix of real
+  // values and blanks pulls the average down rather than quietly averaging
+  // over only the populated rows.
   function sum(values, rowIndices) {
+    if (!rowIndices.length) return null;
     let total = 0;
-    let any = false;
     for (const i of rowIndices) {
       const v = values[i];
-      if (v == null) continue;
-      total += v;
-      any = true;
+      total += v == null ? 0 : v;
     }
-    return any ? total : null;
+    return total;
   }
 
   function mean(values, rowIndices) {
+    if (!rowIndices.length) return null;
     let total = 0;
-    let n = 0;
     for (const i of rowIndices) {
       const v = values[i];
-      if (v == null) continue;
-      total += v;
-      n++;
+      total += v == null ? 0 : v;
     }
-    return n ? total / n : null;
+    return total / rowIndices.length;
   }
 
   /**
@@ -124,8 +137,7 @@
   function distinctValues(column, rowIndices) {
     const counts = new Map();
     for (const i of rowIndices) {
-      const v = column.values[i];
-      if (v == null) continue;
+      const v = bucketKey(column.values[i]);
       counts.set(v, (counts.get(v) || 0) + 1);
     }
     return [...counts.entries()]
@@ -143,8 +155,7 @@
   function groupByDimension(dimensionColumn, measureColumn, rowIndices, columnsByName) {
     const groups = new Map();
     for (const i of rowIndices) {
-      const v = dimensionColumn.values[i];
-      if (v == null) continue;
+      const v = bucketKey(dimensionColumn.values[i]);
       if (!groups.has(v)) groups.set(v, []);
       groups.get(v).push(i);
     }
@@ -222,6 +233,8 @@
   }
 
   return {
+    BLANK,
+    bucketKey,
     byName,
     allRowIndices,
     filterRowIndices,

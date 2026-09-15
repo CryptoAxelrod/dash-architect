@@ -172,6 +172,18 @@
     async countOrphanedDashboardShapes() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.countOrphanedDashboardShapes(ctx));
     },
+    // Last fallback in the dashboard-title chain (table name, then sheet
+    // name, then this) — `workbook.name` is the file name including its
+    // extension (e.g. "Sales.xlsx"), stripped here since a title doesn't
+    // want the extension.
+    async getWorkbookName() {
+      return Excel.run(async (ctx) => {
+        const wb = ctx.workbook;
+        wb.load('name');
+        await ctx.sync();
+        return wb.name ? wb.name.replace(/\.[^./\\]+$/, '') : null;
+      });
+    },
     // Best-effort only — Excel's JS API has no first-class "shape was
     // clicked" event. A failing getSelectedRange() after a selection
     // change is the closest available signal that the selection might now
@@ -234,6 +246,9 @@
     async countOrphanedDashboardShapes() {
       return 0;
     },
+    async getWorkbookName() {
+      return 'Preview Workbook';
+    },
     async probeNonRangeSelection() {
       return false; // no selection events outside Excel
     },
@@ -269,6 +284,7 @@
       startupList: $('startup-list'), startupDashItems: $('startup-dash-items'), startupOrphanHint: $('startup-orphan-hint'),
       mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
       viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
+      themeTitleInput: $('theme-title-input'),
       debugPanel: $('debug-panel'), debugLog: $('debug-log'),
     });
 
@@ -279,6 +295,9 @@
     els.generate.addEventListener('click', () => { if (state.pickingFor === 'change-range') completeChangeRangePicking(); else generate(); });
     els.themeGenerate.addEventListener('click', finalizeGenerate);
     els.themeCancel.addEventListener('click', () => showView('setup'));
+    // finalizeGenerate() trims this and falls back to a bare "Dashboard" if
+    // the user clears the field entirely and generates anyway.
+    els.themeTitleInput.addEventListener('input', () => { state.title = els.themeTitleInput.value; });
     els.reopenDashboard.addEventListener('click', reopenDashboard);
     els.newDashboard.addEventListener('click', startNewDashboard);
     els.cancelChangeRange.addEventListener('click', cancelChangeRangePicking);
@@ -441,9 +460,42 @@
     return s.kind === 'table' ? `Table: ${s.name}` : s.address;
   }
 
-  function sourceTitle() {
-    if (state.source && state.source.kind === 'table') return state.source.name;
-    return (state.range && splitAddress(state.range.address).sheet) || 'Dashboard';
+  // Default dashboard name, in order: the Excel Table's own name, else the
+  // sheet name, else the workbook's file name, else a bare fallback — then
+  // de-duplicated against titles already saved in this workbook (Excel
+  // Tables are auto-named "Table1"/"Table2"/... so two dashboards from two
+  // different tables on the same sheet would otherwise get an identical
+  // suggested name). Only ever produces the *suggested* value — the caller
+  // shows it in an editable field (addin/taskpane.js's view-theme title
+  // input), so a collision the user doesn't fix is their own choice, not a
+  // bug here.
+  async function computeDefaultTitle() {
+    let base;
+    if (state.source && state.source.kind === 'table') {
+      base = state.source.name;
+    } else if (state.range) {
+      const sheet = splitAddress(state.range.address).sheet;
+      base = sheet || null;
+    }
+    if (!base) {
+      try {
+        base = await host.getWorkbookName();
+      } catch (e) {
+        base = null;
+      }
+    }
+    if (!base) base = 'Dashboard';
+
+    let existingTitles;
+    try {
+      existingTitles = new Set((await host.listDashboards()).map((d) => d.payload.title).filter(Boolean));
+    } catch (e) {
+      return base; // can't check for collisions right now — the field is editable anyway
+    }
+    if (!existingTitles.has(base)) return base;
+    let n = 2;
+    while (existingTitles.has(`${base} (${n})`)) n++;
+    return `${base} (${n})`;
   }
 
   // CLAUDE.md §7: a manual role mapping must survive a panel reload — it
@@ -605,7 +657,7 @@
 
       setCta('Classifying columns…', 66);
       const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
-      state.title = sourceTitle();
+      state.title = await computeDefaultTitle();
       logColumnClassification(rawAnalysis);
 
       if (timing) {
@@ -661,6 +713,7 @@
      picker inside the dialog's settings panel (addin/dashboard-dialog.js). ---------- */
   function showThemeScreen() {
     showView('theme');
+    els.themeTitleInput.value = state.title || '';
     renderThemePickerView();
   }
 
@@ -683,6 +736,7 @@
     if (state.busy) return;
     state.busy = true;
     els.buildError.hidden = true;
+    state.title = (state.title || '').trim() || 'Dashboard';
     try {
       await openLiveDashboard();
       showView('setup');
@@ -813,7 +867,13 @@
     const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
     const readyReceiver = Msg.createChunkReceiver(Msg.KIND.READY, () => resolveReady());
     const placeReceiver = Msg.createChunkReceiver(Msg.KIND.PLACE_ON_SHEET, (spec, id) => handlePlaceOnSheet(dlg, spec, id));
-    const stateReceiver = Msg.createChunkReceiver(Msg.KIND.STATE_UPDATE, (raw) => { state.lastDialogState = raw; });
+    const stateReceiver = Msg.createChunkReceiver(Msg.KIND.STATE_UPDATE, (raw) => {
+      state.lastDialogState = raw;
+      // Renamed via the pencil next to the dialog's title (render/dom.js) —
+      // state.title is what placeOnSheet()/handleRefreshRequest actually
+      // read, so this has to land here to survive a later Place/Refresh.
+      if (raw && typeof raw.title === 'string' && raw.title.trim()) state.title = raw.title.trim();
+    });
     const refreshReceiver = Msg.createChunkReceiver(Msg.KIND.REFRESH_REQUEST, (raw, id) => handleRefreshRequest(dlg, raw, id));
     const changeRangeReceiver = Msg.createChunkReceiver(Msg.KIND.CHANGE_RANGE_REQUEST, (raw, id) => handleChangeRangeRequest(dlg, raw, id));
     const openMappingReceiver = Msg.createChunkReceiver(Msg.KIND.OPEN_MAPPING_REQUEST, (raw, id) => handleOpenMappingRequest(dlg, raw, id));
@@ -1082,10 +1142,13 @@
       const overridesToCarry = matches ? state.roleOverrides : await findSavedMappingForSource(sourceLabel());
       if (!matches) state.roleOverrides = overridesToCarry;
 
-      const finish = (finalAnalysis, overrides) => {
+      const finish = async (finalAnalysis, overrides) => {
         state.analysis = finalAnalysis;
         state.roleOverrides = overrides !== undefined ? overrides : overridesToCarry;
-        state.title = sourceTitle();
+        // Keep whatever name this dashboard already has (the user may have
+        // typed their own) — a changed data range doesn't need a changed
+        // title. Only compute a fresh default if it somehow has none yet.
+        if (!state.title) state.title = await computeDefaultTitle();
         const meta = { title: state.title, subtitle: `${finalAnalysis.rowCount.toLocaleString('en-US')} rows` };
         respond({ ok: true, analysis: finalAnalysis, meta, seedState: matches ? pending.raw : null, structureReset: !matches, source: sourceLabel() });
         showView('setup');

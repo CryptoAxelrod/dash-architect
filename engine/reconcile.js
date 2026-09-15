@@ -43,6 +43,13 @@
    * @param {{activeFilters?, sort?, theme?, palette?, widgetConfig?}} rawState
    * @returns {{activeFilters, sort, theme, palette, widgetConfig}|null} null if rawState itself was null/undefined
    */
+  // Mirrors engine/aggregate.js's BLANK sentinel — a blank/missing cell is
+  // filterable as '(blank)' there, so a saved '(blank)' filter selection
+  // must match against still-blank rows here too, not just literal values
+  // (this module has no dependency on Aggregate — see its doc comment — so
+  // the sentinel is duplicated rather than imported).
+  const BLANK = '(blank)';
+
   function reconcileDashboardState(analysis, rawState) {
     if (!rawState) return null;
     const byName = new Map(analysis.columns.map((c) => [c.name, c]));
@@ -51,7 +58,7 @@
     for (const [col, rawValues] of Object.entries(rawState.activeFilters || {})) {
       const column = byName.get(col);
       if (!column || column.decision.role !== 'dimension' || !Array.isArray(rawValues) || !rawValues.length) continue;
-      const stillPresent = new Set(column.values);
+      const stillPresent = new Set(column.values.map((v) => (v == null ? BLANK : v)));
       const kept = rawValues.filter((v) => stillPresent.has(v));
       if (kept.length) activeFilters[col] = kept;
     }
@@ -66,6 +73,13 @@
         return c && c.decision.role === 'measure';
       });
       widgetConfig = Object.assign({}, widgetConfig, { enabledKpis: kept.length ? kept : null });
+    }
+    if (widgetConfig && Array.isArray(widgetConfig.enabledTableColumns)) {
+      const kept = widgetConfig.enabledTableColumns.filter((name) => {
+        const c = byName.get(name);
+        return c && c.decision.role !== 'excluded';
+      });
+      widgetConfig = Object.assign({}, widgetConfig, { enabledTableColumns: kept.length ? kept : null });
     }
     // chartOverrides' chart ids are positional (engine/layout.js#planCharts
     // assigns them fresh every build) so a stale id just silently stops

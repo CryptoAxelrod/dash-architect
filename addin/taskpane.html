@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dash Architect</title>
-<link rel="stylesheet" href="taskpane.css?v=2">
-<link rel="stylesheet" href="theme-picker.css?v=2">
+<link rel="stylesheet" href="taskpane.css?v=1.6">
+<link rel="stylesheet" href="theme-picker.css?v=1.6">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -120,6 +120,10 @@
       <h2>Choose a look</h2>
       <button type="button" class="btn-quiet" id="theme-cancel">Cancel</button>
     </div>
+    <div class="title-field">
+      <label for="theme-title-input">Dashboard name</label>
+      <input type="text" id="theme-title-input" class="title-input" autocomplete="off" spellcheck="false">
+    </div>
     <div id="theme-picker"></div>
     <button type="button" class="cta cta-static" id="theme-generate">Generate dashboard</button>
   </section>
@@ -146,6 +150,7 @@
 
   <div class="build-open" id="build-open" hidden>
     <p class="build-open-note">Dashboard opened in a separate window. Keep this pane open — closing it closes the dashboard window too.</p>
+    <p class="build-open-hint">Nothing is saved into this workbook yet. In that window, click <strong>"Place image on sheet"</strong> (top of the dashboard) to save it here and add it to your list of dashboards.</p>
     <button type="button" class="btn-quiet" id="open-start-over">Start over</button>
   </div>
 
@@ -165,27 +170,27 @@
   </div>
 </footer>
 
-<script src="../engine/values.js?v=2"></script>
-<script src="../engine/csv.js?v=2"></script>
-<script src="../engine/profile.js?v=2"></script>
-<script src="../engine/roles.js?v=2"></script>
-<script src="../engine/aggregate.js?v=2"></script>
-<script src="../engine/layout.js?v=2"></script>
-<script src="../engine/reconcile.js?v=2"></script>
-<script src="../engine/index.js?v=2"></script>
-<script src="../render/format.js?v=2"></script>
-<script src="../render/palettes.js?v=2"></script>
-<script src="../render/themes.js?v=2"></script>
-<script src="../render/svg.js?v=2"></script>
-<script src="../render/share.js?v=2"></script>
-<script src="../render/dom.js?v=2"></script>
-<script src="theme-picker.js?v=2"></script>
-<script src="format-bridge.js?v=2"></script>
-<script src="excel-io.js?v=2"></script>
-<script src="dashboard-io.js?v=2"></script>
-<script src="dialog-messaging.js?v=2"></script>
+<script src="../engine/values.js?v=1.6"></script>
+<script src="../engine/csv.js?v=1.6"></script>
+<script src="../engine/profile.js?v=1.6"></script>
+<script src="../engine/roles.js?v=1.6"></script>
+<script src="../engine/aggregate.js?v=1.6"></script>
+<script src="../engine/layout.js?v=1.6"></script>
+<script src="../engine/reconcile.js?v=1.6"></script>
+<script src="../engine/index.js?v=1.6"></script>
+<script src="../render/format.js?v=1.6"></script>
+<script src="../render/palettes.js?v=1.6"></script>
+<script src="../render/themes.js?v=1.6"></script>
+<script src="../render/svg.js?v=1.6"></script>
+<script src="../render/share.js?v=1.6"></script>
+<script src="../render/dom.js?v=1.6"></script>
+<script src="theme-picker.js?v=1.6"></script>
+<script src="format-bridge.js?v=1.6"></script>
+<script src="excel-io.js?v=1.6"></script>
+<script src="dashboard-io.js?v=1.6"></script>
+<script src="dialog-messaging.js?v=1.6"></script>
 <!-- TEMPORARY — see addin/version.js; remove before release. -->
-<script src="version.js?v=2"></script>
-<script src="taskpane.js?v=2"></script>
+<script src="version.js?v=1.6"></script>
+<script src="taskpane.js?v=1.6"></script>
 </body>
 </html>

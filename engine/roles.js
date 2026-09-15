@@ -63,8 +63,15 @@
       nameKeywords: ['цена', 'стоимость за', 'средн', 'на единицу', 'per'],
     },
     lowCardinality: {
-      maxUnique: 25,
-      maxUniqueRatio: 0.05,
+      maxUnique: 25, // absolute ceiling, regardless of row count
+      // Values must meaningfully repeat, not scale with row count — the old
+      // `rowCount * 0.05` cap meant a table needed ~500+ rows before this
+      // rule could ever recognize more than a couple of categories (11 rows
+      // → cap of 0.55, so even 3 distinct values failed). uniqueRatio itself
+      // doesn't care how many rows there are: a category that repeats
+      // (ratio well under 1) is a dimension at 11 rows exactly as much as
+      // at 900 — see fixtures/16_small_categories.csv.
+      maxUniqueRatio: 0.5,
     },
     weightBase: {
       // 0.5 percentage points, absolute, on the 0-1 fraction scale (i.e. a
@@ -264,10 +271,9 @@
 
     // --- Rule 6: low cardinality, non-numeric -> dimension ---
     if (valueType !== 'number') {
-      const cap = Math.min(CONFIG.lowCardinality.maxUnique, rowCount * CONFIG.lowCardinality.maxUniqueRatio);
-      if (uniqueCount <= cap) {
+      if (uniqueCount <= CONFIG.lowCardinality.maxUnique && uniqueRatio <= CONFIG.lowCardinality.maxUniqueRatio) {
         return decide('dimension', null, CONFIDENCE.DEFAULT, 'low_cardinality',
-          `${uniqueCount} unique values out of ${rowCount} rows — low cardinality, looks like a dimension`);
+          `${uniqueCount} unique values out of ${rowCount} rows (${pct(uniqueRatio)}) — low cardinality, looks like a dimension`);
       }
     }
 
