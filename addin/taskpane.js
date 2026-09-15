@@ -170,8 +170,13 @@
     async saveDraft(shapeName, args) {
       return Excel.run((ctx) => window.DashAddinDashboardIo.saveGeneratedDraft(ctx, shapeName, args));
     },
-    async renameDraft(shapeName, newTitle) {
-      return Excel.run((ctx) => window.DashAddinDashboardIo.renameDraft(ctx, shapeName, newTitle));
+    // `snapshot` ({layoutSpec, pngBase64, canvasSize}), when given, always
+    // updates the stored frozen layoutSpec's title, but only ever replaces
+    // the actual on-sheet PICTURE if one ALREADY EXISTS — see
+    // dashboard-io.js#renameDashboard's doc comment for why renaming must
+    // never create one.
+    async renameDashboard(shapeName, newTitle, snapshot) {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.renameDashboard(ctx, shapeName, newTitle, snapshot));
     },
     async listDashboards() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.listDashboards(ctx));
@@ -262,10 +267,17 @@
       if (idx === -1) previewDashboards.push({ shapeName, payload });
       else previewDashboards[idx] = { shapeName, payload };
     },
-    async renameDraft(shapeName, newTitle) {
+    // No real sheet/shapes outside Excel — `snapshot.pngBase64` is accepted
+    // for interface parity with excelHost but there's nothing to resurrect
+    // or preserve here either way; the layoutSpec update is still applied,
+    // same as excelHost, so a frozen reopen in preview mode also shows the
+    // corrected title.
+    async renameDashboard(shapeName, newTitle, snapshot) {
       const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
       if (idx === -1) throw new Error(`Preview dashboard "${shapeName}" not found.`);
-      previewDashboards[idx] = { shapeName, payload: Object.assign({}, previewDashboards[idx].payload, { title: newTitle }) };
+      const patch = { title: newTitle };
+      if (snapshot && snapshot.layoutSpec) patch.layoutSpec = snapshot.layoutSpec;
+      previewDashboards[idx] = { shapeName, payload: Object.assign({}, previewDashboards[idx].payload, patch) };
     },
     async listDashboards() {
       return previewDashboards.map((d) => ({ shapeName: d.shapeName, payload: d.payload }));
@@ -997,10 +1009,10 @@
       logDebug('place-on-sheet: rasterized, placing image + saving settings…');
       // Reuses the id minted at Generate time (or from reopening a saved
       // dashboard) if there is one — otherwise this dashboard was somehow
-      // opened without ever going through finalizeGenerate/openUnplacedDraft,
+      // opened without ever going through finalizeGenerate/openDashboardLive,
       // and host.placeDashboard mints a fresh one exactly as it always did.
       const { shapeName } = await host.placeDashboard({
-        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), title: state.title,
+        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), source: state.source, title: state.title,
         theme: spec.theme, palette: spec.palette, shapeName: state.currentShapeName || undefined,
       });
       logDebug(`place-on-sheet: host.placeDashboard resolved — shape "${shapeName}".`);
@@ -1260,7 +1272,12 @@
     openBtn.type = 'button';
     openBtn.className = 'primary';
     openBtn.textContent = 'Open';
-    openBtn.addEventListener('click', () => (isDraft ? openUnplacedDraft(d) : openRestoredDashboard(d)));
+    // Live reopen (editable filters/settings) whenever a source was saved
+    // for this dashboard — true for every draft, and for any placed one
+    // saved after generateAndPlace started keeping `source` too. Only a
+    // dashboard placed before that falls back to the frozen, read-only
+    // restore — there's nothing saved to re-read for it.
+    openBtn.addEventListener('click', () => (d.payload.source ? openDashboardLive(d) : openRestoredDashboard(d)));
     const renameBtn = document.createElement('button');
     renameBtn.type = 'button';
     renameBtn.textContent = 'Rename';
@@ -1335,19 +1352,23 @@
     }
   }
 
-  // Reopens a Generate-but-not-yet-placed dashboard (see
-  // dashboard-io.js#saveGeneratedDraft) — no frozen picture to restore
-  // from, so this re-reads the saved source live and continues the exact
-  // same in-progress session finalizeGenerate() would have started,
-  // reusing the same shapeName so a later "Place image on sheet" updates
+  // Reopens ANY saved dashboard live — draft or already-placed — as long as
+  // its structured source was saved (drafts always have one; a placed
+  // dashboard has one whenever it was placed after source-saving landed in
+  // generateAndPlace). Re-reads and reclassifies fresh, so filters/settings
+  // are editable again exactly like a first-time Generate — closing the
+  // dialog was never meant to be a one-way trip. Only a dashboard placed
+  // before this existed (no payload.source) falls back to the read-only
+  // frozen restore (openRestoredDashboard) — nothing else to re-read there.
+  // Reuses the same shapeName so a later "Place image on sheet" updates
   // this same list entry instead of creating a second one.
-  async function openUnplacedDraft(d) {
+  async function openDashboardLive(d) {
     if (state.busy || state.picking) return;
     state.busy = true;
     els.buildError.hidden = true;
     try {
       const source = d.payload.source;
-      if (!source) throw new Error('This draft has no saved source to re-read.');
+      if (!source) throw new Error('No saved source to re-read for this dashboard.');
       const { headers, dataRows } = await host.readRangeForEngine(source);
       const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
       const overrides = Array.isArray(d.payload.mapping) ? mappingToOverrides(d.payload.mapping) : null;
@@ -1364,7 +1385,7 @@
       showView('setup');
       setFooterState('open');
     } catch (err) {
-      logDebug(`open-draft: failed — ${err && err.message ? err.message : err}`);
+      logDebug(`open-live: failed — ${err && err.message ? err.message : err}`);
       els.buildError.textContent = `Could not reopen "${d.payload.title || d.shapeName}": ${err && err.message ? err.message : err}`;
       els.buildError.hidden = false;
     } finally {
@@ -1421,18 +1442,24 @@
     state.busy = true;
     els.buildError.hidden = true;
     try {
-      if (d.payload.placed === false) {
-        // No picture on the sheet yet — nothing to rasterize/replace.
-        await host.renameDraft(d.shapeName, newTitle);
-      } else {
+      // A draft has no layoutSpec/picture yet — a rename is settings-only
+      // there (snapshot stays null). A placed dashboard gets its stored
+      // frozen layoutSpec's title corrected too (so a later frozen reopen
+      // shows the new name, not just the list) — but the actual on-sheet
+      // PICTURE only gets touched if one still actually exists: renaming
+      // used to always place one via generateAndPlace's create-or-replace,
+      // which meant renaming a dashboard whose picture had been deleted
+      // quietly put a new one back on the sheet. host.renameDashboard's
+      // snapshot.pngBase64 is "replace if present, never create" — see
+      // dashboard-io.js#replaceDashboardImageIfExists.
+      let snapshot = null;
+      if (d.payload.placed !== false && d.payload.layoutSpec) {
         const layoutSpec = patchLayoutSpecTitle(d.payload.layoutSpec, newTitle);
         const theme = resolveDashboardTheme(d.payload);
         const pngBase64 = await window.DashRenderShare.renderPngBase64(layoutSpec, theme, null);
-        await host.regenerateDashboard(d.shapeName, {
-          pngBase64, canvasSize: layoutSpec.canvas, snapshot: layoutSpec, mapping: d.payload.mapping,
-          sourceAddress: d.payload.sourceAddress, title: newTitle, theme: d.payload.theme, palette: d.payload.palette,
-        });
+        snapshot = { layoutSpec, pngBase64, canvasSize: layoutSpec.canvas };
       }
+      await host.renameDashboard(d.shapeName, newTitle, snapshot);
       // This dashboard might also be the one currently open in a live
       // dialog (or mid-creation in this very pane) — keep that in sync too,
       // or a later Place/Refresh would resave the OLD title over this rename.

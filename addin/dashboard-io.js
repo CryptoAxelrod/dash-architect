@@ -91,13 +91,45 @@
   // --- Office.js: everything below this line touches context.workbook ---
 
   /**
+   * Finds a shape named `shapeName` across every sheet and deletes it.
+   * @returns {Promise<Excel.Worksheet|null>} the sheet it was on, or null if no such shape exists
+   */
+  async function deleteExistingShape(context, shapeName) {
+    const sheets = context.workbook.worksheets;
+    sheets.load('items');
+    await context.sync();
+    for (const sheet of sheets.items) sheet.shapes.load('items/name');
+    await context.sync();
+    for (const sheet of sheets.items) {
+      const match = sheet.shapes.items.find((s) => s.name === shapeName);
+      if (match) {
+        match.delete();
+        return sheet;
+      }
+    }
+    return null;
+  }
+
+  function addDashboardImage(sheet, pngBase64, canvasSize, shapeName) {
+    const shape = sheet.shapes.addImage(pngBase64);
+    shape.name = shapeName;
+    shape.left = 0;
+    shape.top = 0;
+    shape.width = canvasSize.width * CONFIG.imageScale;
+    shape.height = canvasSize.height * CONFIG.imageScale;
+    return shape;
+  }
+
+  /**
    * Places pngBase64 as a picture named `shapeName`. If a shape with that
    * name already exists (on any sheet), it's deleted first and the
    * replacement goes on that SAME sheet — a re-generate (Refresh + Place
-   * again, or a headless list-triggered rename/change-range) updates the
-   * existing picture in place instead of leaving a stale duplicate behind.
-   * A brand-new name (first placement, including placing a draft for the
-   * first time) goes on the active worksheet, same as always.
+   * again, or a headless list-triggered change-range) updates the existing
+   * picture in place instead of leaving a stale duplicate behind. A
+   * brand-new name (first placement, including placing a draft for the
+   * first time) goes on the active worksheet, same as always. Creates
+   * unconditionally — see replaceDashboardImageIfExists for the "only if
+   * one's already there" variant rename needs.
    * @param {Excel.RequestContext} context
    * @param {string} pngBase64 bare base64 (no `data:` prefix) — see render/share.js#renderPngBase64
    * @param {{width:number, height:number}} canvasSize the layoutSpec's own canvas size, for on-sheet scaling
@@ -105,27 +137,29 @@
    * @returns {Promise<Excel.Shape>}
    */
   async function placeDashboardImage(context, pngBase64, canvasSize, shapeName) {
-    const sheets = context.workbook.worksheets;
-    sheets.load('items');
-    await context.sync();
-    for (const sheet of sheets.items) sheet.shapes.load('items/name');
-    await context.sync();
-
-    let targetSheet = null;
-    for (const sheet of sheets.items) {
-      const match = sheet.shapes.items.find((s) => s.name === shapeName);
-      if (match) { match.delete(); targetSheet = sheet; break; }
-    }
-    if (!targetSheet) targetSheet = context.workbook.worksheets.getActiveWorksheet();
-
-    const shape = targetSheet.shapes.addImage(pngBase64);
-    shape.name = shapeName;
-    shape.left = 0;
-    shape.top = 0;
-    shape.width = canvasSize.width * CONFIG.imageScale;
-    shape.height = canvasSize.height * CONFIG.imageScale;
+    const existingSheet = await deleteExistingShape(context, shapeName);
+    const targetSheet = existingSheet || context.workbook.worksheets.getActiveWorksheet();
+    const shape = addDashboardImage(targetSheet, pngBase64, canvasSize, shapeName);
     await context.sync();
     return shape;
+  }
+
+  /**
+   * Same replace-in-place as placeDashboardImage, but NEVER creates a new
+   * picture — if no shape named `shapeName` exists (deleted, or never
+   * placed — a draft), this is a no-op. Renaming a dashboard must not
+   * resurrect a picture that isn't there: it previously reused
+   * placeDashboardImage's create-or-replace behavior, which meant renaming
+   * something whose picture had been deleted quietly put a brand new one
+   * back on the sheet.
+   * @returns {Promise<boolean>} whether a picture was found and replaced
+   */
+  async function replaceDashboardImageIfExists(context, pngBase64, canvasSize, shapeName) {
+    const existingSheet = await deleteExistingShape(context, shapeName);
+    if (!existingSheet) return false;
+    addDashboardImage(existingSheet, pngBase64, canvasSize, shapeName);
+    await context.sync();
+    return true;
   }
 
   async function saveDashboardSettings(context, shapeName, payload) {
@@ -162,15 +196,7 @@
    * settings entry. Used by the sidebar list's delete (×) action.
    */
   async function deleteDashboard(context, shapeName) {
-    const sheets = context.workbook.worksheets;
-    sheets.load('items');
-    await context.sync();
-    for (const sheet of sheets.items) sheet.shapes.load('items/name');
-    await context.sync();
-    for (const sheet of sheets.items) {
-      const match = sheet.shapes.items.find((s) => s.name === shapeName);
-      if (match) { match.delete(); break; }
-    }
+    await deleteExistingShape(context, shapeName);
     context.workbook.settings.getItemOrNullObject(settingsKeyForShape(shapeName)).delete();
     await context.sync();
   }
@@ -236,7 +262,11 @@
   async function generateAndPlace(context, args) {
     const shapeName = args.shapeName || makeShapeName(Date.now());
     await placeDashboardImage(context, args.pngBase64, args.canvasSize, shapeName);
-    const payload = buildStoragePayload({ snapshot: args.snapshot, mapping: args.mapping, sourceAddress: args.sourceAddress, title: args.title, theme: args.theme, palette: args.palette });
+    // `source` (the structured range/table reference, not just its display
+    // string) is what lets this dashboard be reopened LIVE later instead of
+    // only as a frozen picture — see saveGeneratedDraft's doc comment and
+    // addin/taskpane.js#openDashboardLive.
+    const payload = buildStoragePayload({ snapshot: args.snapshot, mapping: args.mapping, sourceAddress: args.sourceAddress, source: args.source, title: args.title, theme: args.theme, palette: args.palette });
     await saveDashboardSettings(context, shapeName, payload);
     // `saveDashboardSettings` resolving without throwing only means
     // Excel.run's batch didn't reject — it's not proof the item is actually
@@ -272,14 +302,28 @@
   }
 
   /**
-   * Settings-only rename for a draft (see saveGeneratedDraft) — there's no
-   * picture on the sheet yet, so unlike a placed dashboard's rename, this
-   * never touches shapes/rasterization.
+   * Renames a dashboard: always updates the stored title AND (when given)
+   * the stored frozen layoutSpec's own title, so a later frozen reopen
+   * (addin/taskpane.js#openRestoredDashboard — used for a dashboard placed
+   * before source-saving existed) shows the new name too, not just the
+   * list. Only touches the actual on-sheet PICTURE (if `snapshot.pngBase64`/
+   * `canvasSize` are given) when one already exists under this name — see
+   * replaceDashboardImageIfExists. A draft (see saveGeneratedDraft) has no
+   * picture or snapshot yet, so its rename passes no `snapshot` at all; a
+   * placed dashboard whose picture was deleted separately just gets its
+   * title corrected, same as a draft, rather than getting a picture put
+   * back that the user removed.
+   * @param {{layoutSpec?:object, pngBase64?:string, canvasSize?:{width:number,height:number}}} [snapshot]
    */
-  async function renameDraft(context, shapeName, newTitle) {
+  async function renameDashboard(context, shapeName, newTitle, snapshot) {
     const existing = await loadDashboardSettings(context, shapeName);
     if (!existing) throw new Error(`Settings for "${shapeName}" not found — it may have been deleted.`);
-    await saveDashboardSettings(context, shapeName, Object.assign({}, existing, { title: newTitle }));
+    const updated = Object.assign({}, existing, { title: newTitle });
+    if (snapshot && snapshot.layoutSpec) updated.layoutSpec = snapshot.layoutSpec;
+    await saveDashboardSettings(context, shapeName, updated);
+    if (snapshot && snapshot.pngBase64 && snapshot.canvasSize) {
+      await replaceDashboardImageIfExists(context, snapshot.pngBase64, snapshot.canvasSize, shapeName);
+    }
   }
 
   return {
@@ -291,6 +335,7 @@
     shapeNameFromSettingsKey,
     buildStoragePayload,
     placeDashboardImage,
+    replaceDashboardImageIfExists,
     saveDashboardSettings,
     listDashboards,
     loadDashboardSettings,
@@ -299,6 +344,6 @@
     countOrphanedDashboardShapes,
     generateAndPlace,
     saveGeneratedDraft,
-    renameDraft,
+    renameDashboard,
   };
 });

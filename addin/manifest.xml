@@ -31,7 +31,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://CryptoAxelrod.github.io/dash-architect/addin/taskpane.html?v=1.16"/>
+    <SourceLocation DefaultValue="https://CryptoAxelrod.github.io/dash-architect/addin/taskpane.html?v=1.17"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -84,7 +84,7 @@
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://CryptoAxelrod.github.io/dash-architect/"/>
         <bt:Url id="Commands.Url" DefaultValue="https://CryptoAxelrod.github.io/dash-architect/addin/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://CryptoAxelrod.github.io/dash-architect/addin/taskpane.html?v=1.16"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://CryptoAxelrod.github.io/dash-architect/addin/taskpane.html?v=1.17"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Dash Architect is ready"/>
