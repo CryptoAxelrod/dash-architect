@@ -44,7 +44,7 @@
   const state = {
     excel: false,
     picking: false,
-    pickingFor: 'generate', // 'generate' | 'change-range' — which flow finishPicking()/the CTA click should feed into
+    pickingFor: 'generate', // 'generate' | 'change-range' | 'list-change-range' — which flow finishPicking()/the CTA click should feed into
     range: null, // live {address, rows, cols} while picking, for the address/size display
     beforePick: null,
     busy: false,
@@ -60,6 +60,7 @@
     pendingChangeRange: null, // {dlg, raw, requestId} while pickingFor === 'change-range'
     sourceBeforeChangeRange: null,
     rangeBeforeChangeRange: null,
+    pendingListChangeRange: null, // {dashboard, rangeBeforePick, sourceBeforePick} while pickingFor === 'list-change-range' — a headless change-range for a dashboard that isn't open in any dialog
   };
   let host = null;
   let currentDialog = null; // the dashboard-dialog.html window currently open, if any — see openDialog()
@@ -166,6 +167,22 @@
     async placeDashboard(args) {
       return Excel.run((ctx) => window.DashAddinDashboardIo.generateAndPlace(ctx, args));
     },
+    // Headless update of an already-placed dashboard — list-triggered
+    // rename/change-range, neither of which opens the dialog. Reuses the
+    // existing shape/settings identity instead of minting a new one.
+    async regenerateDashboard(shapeName, args) {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.generateAndPlace(ctx, Object.assign({}, args, { shapeName })));
+    },
+    // Settings-only save at "Generate dashboard" time — no picture yet, see
+    // dashboard-io.js#saveGeneratedDraft. `shapeName` is minted client-side
+    // (pure helper, no Excel context needed) so the same id can be reused
+    // once/if the user actually places it later.
+    async saveDraft(shapeName, args) {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.saveGeneratedDraft(ctx, shapeName, args));
+    },
+    async renameDraft(shapeName, newTitle) {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.renameDraft(ctx, shapeName, newTitle));
+    },
     async listDashboards() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.listDashboards(ctx));
     },
@@ -233,10 +250,30 @@
       return { headers, dataRows, totalRows: rows.length, cols: headers.length, timing: { valuesMs: Math.round(t1 - t0), formatMs: 0, totalMs: Math.round(t1 - t0) } };
     },
     async placeDashboard(args) {
-      const shapeName = window.DashAddinDashboardIo.makeShapeName(Date.now());
+      const shapeName = args.shapeName || window.DashAddinDashboardIo.makeShapeName(Date.now());
       const payload = window.DashAddinDashboardIo.buildStoragePayload(args);
-      previewDashboards.push({ shapeName, payload });
+      const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
+      if (idx === -1) previewDashboards.push({ shapeName, payload });
+      else previewDashboards[idx] = { shapeName, payload };
       return { shapeName };
+    },
+    async regenerateDashboard(shapeName, args) {
+      const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
+      if (idx === -1) throw new Error(`Preview dashboard "${shapeName}" not found.`);
+      const payload = window.DashAddinDashboardIo.buildStoragePayload(args);
+      previewDashboards[idx] = { shapeName, payload };
+      return { shapeName };
+    },
+    async saveDraft(shapeName, args) {
+      const payload = window.DashAddinDashboardIo.buildStoragePayload(Object.assign({}, args, { placed: false }));
+      const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
+      if (idx === -1) previewDashboards.push({ shapeName, payload });
+      else previewDashboards[idx] = { shapeName, payload };
+    },
+    async renameDraft(shapeName, newTitle) {
+      const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
+      if (idx === -1) throw new Error(`Preview dashboard "${shapeName}" not found.`);
+      previewDashboards[idx] = { shapeName, payload: Object.assign({}, previewDashboards[idx].payload, { title: newTitle }) };
     },
     async listDashboards() {
       return previewDashboards.map((d) => ({ shapeName: d.shapeName, payload: d.payload }));
@@ -292,7 +329,11 @@
     els.refedit.addEventListener('click', () => { if (!state.picking && !state.busy) startPicking(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.picking) cancelPicking(); });
 
-    els.generate.addEventListener('click', () => { if (state.pickingFor === 'change-range') completeChangeRangePicking(); else generate(); });
+    els.generate.addEventListener('click', () => {
+      if (state.pickingFor === 'change-range') completeChangeRangePicking();
+      else if (state.pickingFor === 'list-change-range') completeListChangeRangePicking();
+      else generate();
+    });
     els.themeGenerate.addEventListener('click', finalizeGenerate);
     els.themeCancel.addEventListener('click', () => showView('setup'));
     // finalizeGenerate() trims this and falls back to a bare "Dashboard" if
@@ -300,7 +341,10 @@
     els.themeTitleInput.addEventListener('input', () => { state.title = els.themeTitleInput.value; });
     els.reopenDashboard.addEventListener('click', reopenDashboard);
     els.newDashboard.addEventListener('click', startNewDashboard);
-    els.cancelChangeRange.addEventListener('click', cancelChangeRangePicking);
+    els.cancelChangeRange.addEventListener('click', () => {
+      if (state.pickingFor === 'list-change-range') cancelListChangeRangePicking();
+      else cancelChangeRangePicking();
+    });
     els.openStartOver.addEventListener('click', startOver);
     els.doneStartOver.addEventListener('click', startOver);
     els.doneViewList.addEventListener('click', showList);
@@ -498,6 +542,17 @@
     return `${base} (${n})`;
   }
 
+  // Shared by findSavedMappingForSource below and the list-triggered
+  // headless "Change data range" (which already has the exact payload in
+  // hand and doesn't need to search for one by source label).
+  function mappingToOverrides(mapping) {
+    const overrides = {};
+    for (const m of mapping) {
+      overrides[m.name] = { role: m.role, chartEligible: m.chartEligible !== false };
+    }
+    return overrides;
+  }
+
   // CLAUDE.md §7: a manual role mapping must survive a panel reload — it
   // was never actually wired up on the read side (payload.mapping was
   // write-only). Looked up fresh every time, not cached at startup, so a
@@ -515,11 +570,7 @@
     const candidates = dashboards.filter((d) => d.payload.sourceAddress === label && Array.isArray(d.payload.mapping));
     if (!candidates.length) return null;
     candidates.sort((a, b) => new Date(b.payload.generatedAt || 0) - new Date(a.payload.generatedAt || 0));
-    const overrides = {};
-    for (const m of candidates[0].payload.mapping) {
-      overrides[m.name] = { role: m.role, chartEligible: m.chartEligible !== false };
-    }
-    return overrides;
+    return mappingToOverrides(candidates[0].payload.mapping);
   }
 
   function renderProgress() {
@@ -533,7 +584,7 @@
   /* ---------- footer: idle sub-states (fresh / has-dashboard / picking a
      change-range source) ---------- */
   function syncIdleFooter() {
-    const changeRangeMode = state.pickingFor === 'change-range';
+    const changeRangeMode = state.pickingFor === 'change-range' || state.pickingFor === 'list-change-range';
     const hasDashboard = !!state.analysis;
     els.generate.hidden = hasDashboard && !changeRangeMode;
     els.reopenRow.hidden = !hasDashboard || changeRangeMode;
@@ -738,6 +789,28 @@
     els.buildError.hidden = true;
     state.title = (state.title || '').trim() || 'Dashboard';
     try {
+      // Generate itself now creates a listed entry right away — no picture
+      // on the sheet yet (see dashboard-io.js#saveGeneratedDraft), only the
+      // mapping/title/theme choice already made, so it isn't lost if the
+      // pane closes before an explicit "Place image on sheet" inside the
+      // dialog. That stays a separate, deliberate action — Generate does
+      // NOT place a picture on its own. A failure here doesn't block
+      // opening the live dialog (Place still works from inside it either
+      // way) but is surfaced rather than silently dropped — the whole
+      // point of doing this is so the list is never the thing lying about
+      // what happened.
+      state.currentShapeName = window.DashAddinDashboardIo.makeShapeName(Date.now());
+      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
+      try {
+        await host.saveDraft(state.currentShapeName, {
+          mapping, sourceAddress: sourceLabel(), source: state.source, title: state.title, theme: state.theme, palette: state.palette,
+        });
+        await refreshDashboardLists();
+      } catch (draftErr) {
+        logDebug(`generate: draft save failed — ${draftErr && draftErr.message ? draftErr.message : draftErr}`);
+        els.buildError.textContent = `Generated, but could not save it to your dashboard list yet: ${draftErr && draftErr.message ? draftErr.message : draftErr}. You can still place it on the sheet from the dialog.`;
+        els.buildError.hidden = false;
+      }
       await openLiveDashboard();
       showView('setup');
       setFooterState('open');
@@ -948,9 +1021,13 @@
       // plus the try/catch below are the two facts to check first: did we
       // get this far, and did the catch actually fire.
       logDebug('place-on-sheet: rasterized, placing image + saving settings…');
+      // Reuses the id minted at Generate time (or from reopening a saved
+      // dashboard) if there is one — otherwise this dashboard was somehow
+      // opened without ever going through finalizeGenerate/openUnplacedDraft,
+      // and host.placeDashboard mints a fresh one exactly as it always did.
       const { shapeName } = await host.placeDashboard({
         pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: sourceLabel(), title: state.title,
-        theme: spec.theme, palette: spec.palette,
+        theme: spec.theme, palette: spec.palette, shapeName: state.currentShapeName || undefined,
       });
       logDebug(`place-on-sheet: host.placeDashboard resolved — shape "${shapeName}".`);
       return { ok: true, shapeName };
@@ -1177,6 +1254,14 @@
   /* ---------- dashboards list / restore ---------- */
   async function showList() {
     showView('list');
+    await refreshDashList();
+  }
+
+  // Split out from showList() so a list-triggered rename/change-range can
+  // refresh the DOM in place after it finishes — those run from either list
+  // (startup or hamburger-menu) and must not force-navigate the pane to
+  // 'list' if the user was looking at something else when they clicked.
+  async function refreshDashList() {
     els.dashList.innerHTML = '';
     els.listEmpty.hidden = true;
     let dashboards = [];
@@ -1209,7 +1294,17 @@
     }
   }
 
+  // After a list-triggered rename/change-range completes, both lists need
+  // fresh data (the item could be showing in either or both), but neither
+  // view should be force-switched — the user might be looking at either
+  // one, or neither, when the background update finishes.
+  async function refreshDashboardLists() {
+    await refreshStartupList();
+    if (!els.viewList.hidden) await refreshDashList();
+  }
+
   function renderDashListItem(d) {
+    const isDraft = d.payload.placed === false;
     const li = document.createElement('li');
     const title = document.createElement('p');
     title.className = 'dash-item-title';
@@ -1217,17 +1312,228 @@
     const meta = document.createElement('p');
     meta.className = 'dash-item-meta';
     const when = d.payload.generatedAt ? new Date(d.payload.generatedAt).toLocaleString() : 'unknown time';
-    meta.textContent = `${d.payload.sourceAddress || ''} · generated ${when}`;
+    // A draft has no picture on the sheet yet — say so plainly rather than
+    // showing a generated-time line that implies it's already there.
+    meta.textContent = isDraft
+      ? `${d.payload.sourceAddress || ''} · not placed on a sheet yet`
+      : `${d.payload.sourceAddress || ''} · generated ${when}`;
     const actions = document.createElement('div');
     actions.className = 'dash-item-actions';
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
     openBtn.className = 'primary';
     openBtn.textContent = 'Open';
-    openBtn.addEventListener('click', () => openRestoredDashboard(d));
-    actions.appendChild(openBtn);
+    openBtn.addEventListener('click', () => (isDraft ? openUnplacedDraft(d) : openRestoredDashboard(d)));
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.textContent = 'Rename';
+    renameBtn.addEventListener('click', () => startListRename(d, title));
+    actions.append(openBtn, renameBtn);
+    // Change data range needs a placed picture to update in place — for a
+    // draft, opening it and using the dialog's own Change data range does
+    // the same thing (there's nothing on the sheet yet to leave stale).
+    if (!isDraft) {
+      const rangeBtn = document.createElement('button');
+      rangeBtn.type = 'button';
+      rangeBtn.textContent = 'Change data range';
+      rangeBtn.addEventListener('click', () => startListChangeRange(d));
+      actions.appendChild(rangeBtn);
+    }
     li.append(title, meta, actions);
     return li;
+  }
+
+  // Reopens a Generate-but-not-yet-placed dashboard (see
+  // dashboard-io.js#saveGeneratedDraft) — no frozen picture to restore
+  // from, so this re-reads the saved source live and continues the exact
+  // same in-progress session finalizeGenerate() would have started,
+  // reusing the same shapeName so a later "Place image on sheet" updates
+  // this same list entry instead of creating a second one.
+  async function openUnplacedDraft(d) {
+    if (state.busy || state.picking) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    try {
+      const source = d.payload.source;
+      if (!source) throw new Error('This draft has no saved source to re-read.');
+      const { headers, dataRows } = await host.readRangeForEngine(source);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      const overrides = Array.isArray(d.payload.mapping) ? mappingToOverrides(d.payload.mapping) : null;
+      state.source = source;
+      state.analysis = window.DashEngine.applyRoleOverrides(rawAnalysis, overrides);
+      state.roleOverrides = overrides;
+      state.title = d.payload.title;
+      state.theme = d.payload.theme || 'light';
+      state.palette = d.payload.palette || 'ocean';
+      state.currentShapeName = d.shapeName;
+      state.lastDialogState = null;
+      updateSourceBadge();
+      await openLiveDashboard();
+      showView('setup');
+      setFooterState('open');
+    } catch (err) {
+      logDebug(`open-draft: failed — ${err && err.message ? err.message : err}`);
+      els.buildError.textContent = `Could not reopen "${d.payload.title || d.shapeName}": ${err && err.message ? err.message : err}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  // ---------- list-triggered rename/change-range: both act on a dashboard
+  // that is NOT open in any dialog — headless, no live preview, patches the
+  // already-saved settings and the on-sheet picture directly (see
+  // addin/dashboard-io.js#regenerateAndReplace). Distinct from the dialog's
+  // own rename (render/dom.js's pencil)/Change data range (dialog settings
+  // panel), which both go through a live session instead. ----------
+
+  function resolveDashboardTheme(payload) {
+    const base = (window.DashRenderThemes.THEMES[payload.theme] || window.DashRenderThemes.THEMES.light);
+    return window.DashRenderPalettes.withPalette(base, payload.palette || window.DashRenderPalettes.DEFAULT_PALETTE);
+  }
+
+  function patchLayoutSpecTitle(layoutSpec, newTitle) {
+    return Object.assign({}, layoutSpec, {
+      widgets: layoutSpec.widgets.map((w) => (w.type === 'header' ? Object.assign({}, w, { title: newTitle }) : w)),
+    });
+  }
+
+  function startListRename(d, titleEl) {
+    if (state.busy || state.picking) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'title-input';
+    input.value = d.payload.title || '';
+    let settled = false;
+    function finish(shouldCommit) {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      titleEl.hidden = false;
+      if (shouldCommit) commitListRename(d, input.value);
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+    titleEl.hidden = true;
+    titleEl.insertAdjacentElement('afterend', input);
+    input.focus();
+    input.select();
+  }
+
+  async function commitListRename(d, newTitleRaw) {
+    const newTitle = (newTitleRaw || '').trim();
+    if (!newTitle || newTitle === d.payload.title) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    try {
+      if (d.payload.placed === false) {
+        // No picture on the sheet yet — nothing to rasterize/replace.
+        await host.renameDraft(d.shapeName, newTitle);
+      } else {
+        const layoutSpec = patchLayoutSpecTitle(d.payload.layoutSpec, newTitle);
+        const theme = resolveDashboardTheme(d.payload);
+        const pngBase64 = await window.DashRenderShare.renderPngBase64(layoutSpec, theme, null);
+        await host.regenerateDashboard(d.shapeName, {
+          pngBase64, canvasSize: layoutSpec.canvas, snapshot: layoutSpec, mapping: d.payload.mapping,
+          sourceAddress: d.payload.sourceAddress, title: newTitle, theme: d.payload.theme, palette: d.payload.palette,
+        });
+      }
+      // This dashboard might also be the one currently open in a live
+      // dialog (or mid-creation in this very pane) — keep that in sync too,
+      // or a later Place/Refresh would resave the OLD title over this rename.
+      if (state.currentShapeName === d.shapeName) state.title = newTitle;
+      await refreshDashboardLists();
+    } catch (err) {
+      logDebug(`list-rename: failed — ${err && err.message ? err.message : err}`);
+      els.buildError.textContent = `Could not rename "${d.payload.title || d.shapeName}": ${err && err.message ? err.message : err}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  function startListChangeRange(d) {
+    if (state.busy || state.picking) return;
+    // This exact dashboard is the one currently open live (in a dialog, or
+    // mid-creation in this pane) — that live session has its own source in
+    // memory already, and this headless path writing over it underneath
+    // would let a later Refresh/Place from the stale live session clobber
+    // the change right back. Use the dialog's own Change data range there
+    // instead — see addin/dashboard-dialog.js's Data source setting.
+    if (state.currentShapeName === d.shapeName) {
+      els.buildError.textContent = `"${d.payload.title || d.shapeName}" is currently open — use "Change data range" inside its own window instead.`;
+      els.buildError.hidden = false;
+      return;
+    }
+    state.pendingListChangeRange = { dashboard: d, rangeBeforePick: state.range, sourceBeforePick: state.source };
+    state.pickingFor = 'list-change-range';
+    showView('setup');
+    setFooterState('idle');
+  }
+
+  function cancelListChangeRangePicking() {
+    const pending = state.pendingListChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingListChangeRange = null;
+    if (pending) {
+      restoreRange(pending.rangeBeforePick);
+      state.source = pending.sourceBeforePick;
+      updateSourceBadge();
+    }
+    showView('list');
+  }
+
+  // No mapping-review screen here even for a >6-column result — this flow
+  // never opens anything for the user to review before it writes, by
+  // design (a fully headless "Change data range" was the explicit choice
+  // over "open the dialog and jump into its own Change data range flow").
+  // A saved role mapping from the dashboard's PREVIOUS source still applies
+  // wherever a column name matches; anything new just falls back to plain
+  // auto-classification, same as applyRoleOverrides always does for a name
+  // it doesn't recognize.
+  async function completeListChangeRangePicking() {
+    const pending = state.pendingListChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingListChangeRange = null;
+    if (!pending) return;
+
+    const newSource = state.source;
+    const newSourceLabel = sourceLabel(newSource);
+    restoreRange(pending.rangeBeforePick);
+    state.source = pending.sourceBeforePick;
+    updateSourceBadge();
+    showView('list');
+    els.buildError.hidden = true;
+
+    state.busy = true;
+    try {
+      const { headers, dataRows } = await host.readRangeForEngine(newSource);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      const oldMapping = pending.dashboard.payload.mapping;
+      const overrides = Array.isArray(oldMapping) ? mappingToOverrides(oldMapping) : null;
+      const analysis = window.DashEngine.applyRoleOverrides(rawAnalysis, overrides);
+      const meta = { title: pending.dashboard.payload.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+      const layoutSpec = window.DashEngine.buildLayoutSpec(analysis, meta);
+      const theme = resolveDashboardTheme(pending.dashboard.payload);
+      const columnsByName = window.DashEngine.Aggregate.byName(analysis.columns);
+      const pngBase64 = await window.DashRenderShare.renderPngBase64(layoutSpec, theme, columnsByName);
+      const snapshot = window.DashEngine.Layout.buildStorageSnapshot(layoutSpec, analysis.columns);
+      const mapping = analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
+      await host.regenerateDashboard(pending.dashboard.shapeName, {
+        pngBase64, canvasSize: layoutSpec.canvas, snapshot, mapping, sourceAddress: newSourceLabel,
+        title: pending.dashboard.payload.title, theme: pending.dashboard.payload.theme, palette: pending.dashboard.payload.palette,
+      });
+      await refreshDashboardLists();
+    } catch (err) {
+      logDebug(`list-change-range: failed — ${err && err.message ? err.message : err}`);
+      els.buildError.textContent = `Could not change the data range for "${pending.dashboard.payload.title || pending.dashboard.shapeName}": ${err && err.message ? err.message : err}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
   }
 
   async function maybeOpenClickedDashboard() {

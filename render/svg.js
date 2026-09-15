@@ -547,6 +547,9 @@
 
   function formatCell(col, value, theme) {
     if (value == null) return '—';
+    // See render/dom.js's formatCell — same year_like exception, kept in
+    // sync since this is the separate static/export renderer.
+    if (col.granularity === 'year') return String(value);
     if (col.role === 'time' || col.cellFormat === 'date') {
       const d = new Date(value);
       const MONTHS_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

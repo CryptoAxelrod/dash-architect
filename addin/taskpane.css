@@ -132,7 +132,7 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .dash-list li { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
 .dash-item-title { margin: 0 0 2px; font-size: 13.5px; font-weight: 650; }
 .dash-item-meta { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); }
-.dash-item-actions { display: flex; gap: 8px; }
+.dash-item-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .dash-item-actions button { font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--rule); background: transparent; cursor: pointer; }
 .dash-item-actions button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
 

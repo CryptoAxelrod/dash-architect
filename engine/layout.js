@@ -245,7 +245,7 @@
         id: 'table',
         type: 'table',
         rect: { x: x0, y, w: W, h: tableH },
-        columns: tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null })),
+        columns: tableColumns.map((c) => ({ name: c.name, role: c.decision.role, cellFormat: c.profile.cellFormat, aggregation: c.decision.aggregation, valueScale: c.decision.valueScale || null, granularity: c.decision.granularity || null })),
         defaultSort: { key: (sel.time || tableColumns[0] || {}).name, dir: 'asc' },
       });
       y += tableH;

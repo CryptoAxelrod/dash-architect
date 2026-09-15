@@ -57,6 +57,12 @@
 
   function formatCell(col, value, theme) {
     if (value == null) return '—';
+    // A year_like time column (engine/roles.js rule 3) stores the bare year
+    // itself as its value (e.g. 2025), not an epoch — same reason
+    // engine/aggregate.js#bucketByTime special-cases it before treating the
+    // value as milliseconds. Same distinction as `format_date` is what sets
+    // it apart from an ordinary date/time column, so no separate flag.
+    if (col.granularity === 'year') return String(value);
     if (col.role === 'time' || col.cellFormat === 'date') {
       const d = new Date(value);
       const MONTHS_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
