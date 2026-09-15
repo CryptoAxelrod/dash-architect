@@ -20,19 +20,28 @@
   const CONFIG = {
     identifier: {
       uniqueRatioThreshold: 0.95, // integer column above this unique ratio looks like an id
-      // uniqueRatio is noise below this many rows — see Rule 2's comment.
+      // Shared floor for every *shape*-only signal below (uniqueness,
+      // monotonic step) — see Rule 2's comment. Below this many rows,
+      // "looks like a counter" isn't distinguishable from "small, evenly
+      // spaced metric" by shape alone: 10, 20, 30 … 140 is exactly as
+      // monotonic-with-a-small-step as a real sequential ID, and a 14-row
+      // demo table is a far more likely thing for a real column named
+      // "Сумма" to be — see fixtures/15_small_monotonic_metric.csv. Below
+      // this floor, a NUMERIC column is never excluded as an identifier by
+      // shape alone; only a name match saves it, and only a non-numeric
+      // column (idByNameAlone) can do that without also clearing this floor.
       minRows: 30,
       nameKeywords: ['id', 'код', 'артикул', 'номер', '№', 'sku', 'индекс'],
-      // Below this many rows a monotonic run is too short to trust its step
-      // pattern (need at least a few steps to tell "counter" from "noise").
-      monotonicMinRows: 5,
       // A counter-like step stays small and bounded no matter how large the
       // column's own values get (an auto-increment ID jumps by 1, or by a
       // few when rows were deleted); a table merely sorted by some other
-      // metric has steps as large as that metric's own values. 20 is a
-      // generous ceiling for "gap between consecutive IDs," and comfortably
-      // below the smallest step any of this project's fixtures show for a
-      // real measure sorted ascending — see fixtures/13_sorted_by_metric.csv.
+      // metric has steps as large as that metric's own values — but only
+      // once there are enough rows for "large" to mean anything; see
+      // `minRows` above for why a small table can't lean on step size alone
+      // in the first place. 20 is a generous ceiling for "gap between
+      // consecutive IDs," and comfortably below the smallest step this
+      // project's large-N fixtures show for a real measure sorted ascending
+      // — see fixtures/13_sorted_by_metric.csv.
       monotonicMaxStep: 20,
     },
     year: {
@@ -151,14 +160,20 @@
     //     header, not evidence of an identifier by itself.
     //  b) a counter-like monotonic integer sequence (`monotonicSequence`) —
     //     row order climbing (or falling) end to end, gaps allowed, WITH
-    //     small, bounded steps (`monotonicMaxStep`, from engine/profile.js).
-    //     Direction alone isn't enough: a table merely sorted by some
-    //     measure is exactly as monotonic as a real ID column, but its
-    //     steps are as large and irregular as the measure's own values,
-    //     where a real auto-increment ID's steps stay small no matter how
-    //     large the ID values themselves get — see
-    //     fixtures/13_sorted_by_metric.csv. `monotonicMinRows` guards
-    //     against trusting a step pattern measured from only 1-2 steps.
+    //     small, bounded steps (`monotonicMaxStep`, from engine/profile.js),
+    //     AND at least `minRows` rows. Direction and step size alone still
+    //     aren't enough below that floor: 10, 20, 30 … 140 (14 rows) is
+    //     exactly as "monotonic, small bounded step" as a real ID sequence,
+    //     but is at least as likely to just be a small, evenly-spaced
+    //     amount column — see fixtures/15_small_monotonic_metric.csv. A
+    //     table merely sorted by some measure is exactly as monotonic as a
+    //     real ID column too, but at real scale its steps are as large and
+    //     irregular as the measure's own values, where a real auto-increment
+    //     ID's steps stay small no matter how large the ID values themselves
+    //     get — see fixtures/13_sorted_by_metric.csv. Below `minRows`, this
+    //     signal never fires at all — shape alone isn't trusted on a small
+    //     table; only a name match (signal (a), non-numeric only) can
+    //     exclude a column that small.
     //     Explicitly not triggered by a year-shaped range: a fiscal-year
     //     column sorted chronologically (2024, 2024, 2024, 2025, ...) is
     //     exactly as "monotonic, small steps, repeats allowed" as a real ID
@@ -185,7 +200,7 @@
     const monotonicSequence =
       isNumericInteger && !looksLikeYearRange &&
       (monotonic === 'increasing' || monotonic === 'decreasing') &&
-      rowCount >= CONFIG.identifier.monotonicMinRows &&
+      rowCount >= CONFIG.identifier.minRows &&
       monotonicStepCount >= 2 &&
       monotonicMaxStep != null && monotonicMaxStep <= CONFIG.identifier.monotonicMaxStep;
 
