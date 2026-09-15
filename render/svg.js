@@ -44,6 +44,7 @@
   }
 
   const fitFontSize = Format.fitFontSize;
+  const truncateToWidth = Format.truncateToWidth;
   function attrStr(attrs) {
     if (!attrs) return '';
     return Object.entries(attrs)
@@ -192,16 +193,22 @@
     const valueSize = fitFontSize(valueStr, r.w, isHero ? theme.type.kpiHero : theme.type.kpiValue, isHero ? 24 : 14);
     const negative = widget.value != null && widget.value < 0;
 
-    let out = text(r.x, r.y + theme.type.kpiLabel, widget.label, { fill: c.muted, 'font-size': theme.type.kpiLabel, 'font-family': theme.font.family });
+    // SVG <text> doesn't clip on its own (unlike render/dom.js's real DOM,
+    // which gets overflow:hidden) — truncate the string itself so a long
+    // measure name can't visually run into the next card.
+    const label = truncateToWidth(widget.label, r.w, theme.type.kpiLabel);
+    let out = text(r.x, r.y + theme.type.kpiLabel, label, { fill: c.muted, 'font-size': theme.type.kpiLabel, 'font-family': theme.font.family });
     out += text(r.x, r.y + theme.type.kpiLabel + valueSize * 0.95, valueStr, {
       fill: negative && theme.negativeStyle === 'color' ? c.negative : c.ink,
       'font-size': valueSize, 'font-weight': 750, 'font-family': theme.font.family,
     });
-    const caption = widget.approximate
-      ? 'Unweighted average — no verified weight base'
-      : `${widget.count.toLocaleString('en-US')} row${widget.count === 1 ? '' : 's'}`;
+    const captionSize = theme.type.kpiLabel - 1.5;
+    const caption = truncateToWidth(
+      widget.approximate ? 'Unweighted average — no verified weight base' : `${widget.count.toLocaleString('en-US')} row${widget.count === 1 ? '' : 's'}`,
+      r.w, captionSize
+    );
     out += text(r.x, r.y + theme.type.kpiLabel + valueSize + 16, caption, {
-      fill: c.faint, 'font-size': theme.type.kpiLabel - 1.5, 'font-family': theme.font.family,
+      fill: c.faint, 'font-size': captionSize, 'font-family': theme.font.family,
     });
     if (!isHero) {
       // secondary cards are divided by a vertical rule, not boxed — matches
@@ -580,13 +587,25 @@
     const visibleRows = Math.max(1, Math.floor((r.h - pad(theme) * 2 - theme.table.headerSize - 12 - 26) / rowH));
 
     const cols = widget.columns;
-    const colW = innerW / cols.length;
     const { rows: pageRows, total } = tableRowValues(widget, dataColumns, visibleRows);
+    // Same per-column "autofit" as render/dom.js's live table (see
+    // Format.computeColumnWidths) instead of splitting the width evenly —
+    // a static picture needs this even more, since there's no hover here to
+    // fall back on for whatever gets truncated.
+    const cellStrings = pageRows.map((rowValues) => cols.map((col, ci) => formatCell(col, rowValues[ci], theme)));
+    const colWidths = Format.computeColumnWidths(
+      cols.map((col, ci) => ({ header: col.name, samples: cellStrings.map((row) => row[ci]) })),
+      innerW, { fontSize: theme.table.cellSize }
+    );
+    const colX = [];
+    for (let i = 0, acc = innerX; i < colWidths.length; i++) { colX.push(acc); acc += colWidths[i]; }
 
     cols.forEach((col, i) => {
-      const x = innerX + i * colW;
+      const x = colX[i];
+      const cw = colWidths[i];
       const isNum = col.role === 'measure';
-      out += text(isNum ? x + colW : x, headerY + theme.table.headerSize, col.name + (widget.sort.key === col.name ? (widget.sort.dir === 'asc' ? ' ↑' : ' ↓') : ''), {
+      const label = truncateToWidth(col.name + (widget.sort.key === col.name ? (widget.sort.dir === 'asc' ? ' ↑' : ' ↓') : ''), cw, theme.table.headerSize);
+      out += text(isNum ? x + cw : x, headerY + theme.table.headerSize, label, {
         fill: c.muted, 'font-size': theme.table.headerSize, 'font-weight': 650, 'text-anchor': isNum ? 'end' : 'start', 'font-family': theme.font.family,
       });
     });
@@ -596,12 +615,13 @@
     pageRows.forEach((rowValues, ri) => {
       y += rowH;
       cols.forEach((col, ci) => {
-        const x = innerX + ci * colW;
+        const x = colX[ci];
+        const cw = colWidths[ci];
         const isNum = col.role === 'measure';
         const raw = rowValues[ci];
-        const str = formatCell(col, raw, theme);
+        const str = truncateToWidth(cellStrings[ri][ci], cw, theme.table.cellSize);
         const isNegative = isNum && raw != null && raw < 0 && theme.negativeStyle === 'color';
-        out += text(isNum ? x + colW : x, y - rowH / 2 + 5, truncate(str, 28), {
+        out += text(isNum ? x + cw : x, y - rowH / 2 + 5, str, {
           fill: isNegative ? c.negative : c.ink, 'font-size': theme.table.cellSize, 'text-anchor': isNum ? 'end' : 'start', 'font-family': theme.font.family,
         });
       });

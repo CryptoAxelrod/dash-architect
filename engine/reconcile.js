@@ -74,6 +74,13 @@
       });
       widgetConfig = Object.assign({}, widgetConfig, { enabledKpis: kept.length ? kept : null });
     }
+    if (widgetConfig && Array.isArray(widgetConfig.enabledDimensions)) {
+      const kept = widgetConfig.enabledDimensions.filter((name) => {
+        const c = byName.get(name);
+        return c && c.decision.role === 'dimension';
+      });
+      widgetConfig = Object.assign({}, widgetConfig, { enabledDimensions: kept.length ? kept : null });
+    }
     if (widgetConfig && Array.isArray(widgetConfig.enabledTableColumns)) {
       const kept = widgetConfig.enabledTableColumns.filter((name) => {
         const c = byName.get(name);

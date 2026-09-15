@@ -56,7 +56,7 @@
     palette: 'ocean',
     lastDialogState: null, // {activeFilters, sort, theme, widgetConfig} from the dialog's STATE_UPDATE — survives the dialog closing
     result: null,
-    currentShapeName: null, // shapeName of the dashboard currently open in the dialog, once it has one (placed, or reopened from the list) — excluded from the settings panel's "switch to" list (addin/dashboard-dialog.js's "Other dashboards" section)
+    currentShapeName: null, // shapeName of the dashboard currently open in the dialog, once it has one (placed, or reopened from the list)
     pendingChangeRange: null, // {dlg, raw, requestId} while pickingFor === 'change-range'
     sourceBeforeChangeRange: null,
     rangeBeforeChangeRange: null,
@@ -98,18 +98,10 @@
     return sheet.getRange(cells);
   }
 
-  // For a plain range (not a table): the address alone doesn't know if rows
-  // were inserted/deleted above it since it was picked — comparing the
-  // freshly-read header row against what was captured at pick time turns a
-  // silent read of shifted data into a clear error instead.
-  function checkHeadersUnchanged(source, headers) {
-    if (source.kind !== 'range' || !source.headers) return;
-    const same = headers.length === source.headers.length && headers.every((h, i) => h === source.headers[i]);
-    if (!same) {
-      throw new Error(`Headers in ${source.address} have changed — the range may have shifted (rows inserted/deleted above it). Pick the range again.`);
-    }
-  }
-
+  // Deliberately no "did the header row change since this was picked?"
+  // guard here (there used to be one) — renaming a column is a normal edit,
+  // not a sign the range shifted, and it was blocking exactly that: reopen
+  // just re-reads and reclassifies against whatever headers are there now.
   const excelHost = {
     async readSelectionInfo() {
       try {
@@ -159,9 +151,7 @@
     async readRangeForEngine(source) {
       return Excel.run(async (ctx) => {
         const range = await resolveSourceRange(ctx, source);
-        const result = await window.DashAddinExcelIo.readRangeForEngine(ctx, range);
-        checkHeadersUnchanged(source, result.headers);
-        return result;
+        return window.DashAddinExcelIo.readRangeForEngine(ctx, range);
       });
     },
     async placeDashboard(args) {
@@ -185,6 +175,9 @@
     },
     async listDashboards() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.listDashboards(ctx));
+    },
+    async deleteDashboard(shapeName) {
+      return Excel.run((ctx) => window.DashAddinDashboardIo.deleteDashboard(ctx, shapeName));
     },
     async countOrphanedDashboardShapes() {
       return Excel.run((ctx) => window.DashAddinDashboardIo.countOrphanedDashboardShapes(ctx));
@@ -246,7 +239,6 @@
       const rows = await readPreviewFixture();
       const t1 = performance.now();
       const [headers, ...dataRows] = rows;
-      checkHeadersUnchanged(source, headers);
       return { headers, dataRows, totalRows: rows.length, cols: headers.length, timing: { valuesMs: Math.round(t1 - t0), formatMs: 0, totalMs: Math.round(t1 - t0) } };
     },
     async placeDashboard(args) {
@@ -277,6 +269,10 @@
     },
     async listDashboards() {
       return previewDashboards.map((d) => ({ shapeName: d.shapeName, payload: d.payload }));
+    },
+    async deleteDashboard(shapeName) {
+      const idx = previewDashboards.findIndex((d) => d.shapeName === shapeName);
+      if (idx !== -1) previewDashboards.splice(idx, 1);
     },
     // No real sheet/shapes outside Excel — placeDashboard above never
     // creates one that could go orphaned.
@@ -322,7 +318,6 @@
       mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
       viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
       themeTitleInput: $('theme-title-input'),
-      debugPanel: $('debug-panel'), debugLog: $('debug-log'),
     });
 
     els.refBtn.addEventListener('click', (e) => { e.stopPropagation(); state.picking ? finishPicking() : startPicking(); });
@@ -593,37 +588,10 @@
     els.generate.disabled = !state.range;
   }
 
-  /* ---------- debug (temporary) — surfaces dialog/messaging lifecycle
-     events with no console available in the add-in host; remove once the
-     dialog architecture has proven itself in real Excel. ---------- */
-  function logDebug(text) {
-    els.debugPanel.hidden = false;
-    const line = `[${new Date().toLocaleTimeString()}] ${text}`;
-    els.debugLog.textContent = els.debugLog.textContent ? `${els.debugLog.textContent}\n${line}` : line;
-  }
-
-  // One line per column, right after auto-classification (before any saved
-  // override is layered on) — the only way to see *why* a column landed
-  // where it did without a real Excel devtools console. Deliberately dumps
-  // the exact profile fields engine/roles.js's identifier/year rules read
-  // (uniqueRatio, monotonic, monotonicMaxStep, min/max), since "which rule
-  // fired and on what evidence" is what's actually needed to fix a
-  // misclassification report — the role/rule alone isn't enough to tell
-  // whether it was uniqueness, a monotonic step, or the year-range rule.
-  function logColumnClassification(analysis) {
-    logDebug(`classified ${analysis.columns.length} column(s):`);
-    for (const col of analysis.columns) {
-      const p = col.profile;
-      const d = col.decision;
-      const uniqueRatioStr = p.uniqueRatio != null ? p.uniqueRatio.toFixed(2) : 'n/a';
-      logDebug(
-        `  "${col.name}": role=${d.role} rule=${d.rule}` +
-        ` | type=${p.valueType} cellFormat=${p.cellFormat} isInteger=${p.isInteger}` +
-        ` uniqueRatio=${uniqueRatioStr} rowCount=${p.rowCount}` +
-        ` min=${p.min} max=${p.max} monotonic=${p.monotonic} monotonicMaxStep=${p.monotonicMaxStep}`
-      );
-    }
-  }
+  // No-op: the temporary debug panel this fed is gone (it got in the way
+  // day to day) — kept as a function so every call site below stays valid
+  // without editing each one individually.
+  function logDebug() {}
 
   /* ---------- mapping screen (>6 columns) ---------- */
   const ROLE_OPTIONS = [
@@ -709,7 +677,6 @@
       setCta('Classifying columns…', 66);
       const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
       state.title = await computeDefaultTitle();
-      logColumnClassification(rawAnalysis);
 
       if (timing) {
         els.buildTiming.hidden = false;
@@ -950,11 +917,8 @@
     const refreshReceiver = Msg.createChunkReceiver(Msg.KIND.REFRESH_REQUEST, (raw, id) => handleRefreshRequest(dlg, raw, id));
     const changeRangeReceiver = Msg.createChunkReceiver(Msg.KIND.CHANGE_RANGE_REQUEST, (raw, id) => handleChangeRangeRequest(dlg, raw, id));
     const openMappingReceiver = Msg.createChunkReceiver(Msg.KIND.OPEN_MAPPING_REQUEST, (raw, id) => handleOpenMappingRequest(dlg, raw, id));
-    const listDashboardsReceiver = Msg.createChunkReceiver(Msg.KIND.LIST_DASHBOARDS_REQUEST, (raw, id) => handleListDashboardsRequest(dlg, id));
-    const switchDashboardReceiver = Msg.createChunkReceiver(Msg.KIND.SWITCH_DASHBOARD_REQUEST, (raw) => handleSwitchDashboardRequest(raw));
     dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
-      readyReceiver(arg.message) || placeReceiver(arg.message) || stateReceiver(arg.message) || refreshReceiver(arg.message) || changeRangeReceiver(arg.message) || openMappingReceiver(arg.message) ||
-        listDashboardsReceiver(arg.message) || switchDashboardReceiver(arg.message);
+      readyReceiver(arg.message) || placeReceiver(arg.message) || stateReceiver(arg.message) || refreshReceiver(arg.message) || changeRangeReceiver(arg.message) || openMappingReceiver(arg.message);
     });
 
     await readyPromise;
@@ -1130,43 +1094,6 @@
     );
   }
 
-  // Settings panel's "Other dashboards" section (first item in that menu —
-  // see addin/dashboard-dialog.js) asked for the current list, minus
-  // whichever dashboard this dialog is already showing.
-  async function handleListDashboardsRequest(dlg, requestId) {
-    logDebug(`list-dashboards: request received (${requestId}).`);
-    const Msg = window.DashDialogMessaging;
-    const respond = (payload) => Msg.sendChunked((str) => dlg.messageChild(str), Msg.KIND.LIST_DASHBOARDS_RESULT, payload, null, requestId);
-    try {
-      const dashboards = await host.listDashboards();
-      const others = dashboards
-        .filter((d) => d.shapeName !== state.currentShapeName)
-        .map((d) => ({ shapeName: d.shapeName, title: d.payload.title || d.shapeName, sourceAddress: d.payload.sourceAddress || '', generatedAt: d.payload.generatedAt || null }));
-      respond({ ok: true, dashboards: others });
-    } catch (err) {
-      respond({ ok: false, error: err && err.message ? err.message : String(err) });
-    }
-  }
-
-  // The user picked a different saved dashboard from the settings panel.
-  // openRestoredDashboard closes the currently-open dialog itself (see
-  // openDialog's "only one dialog at a time") — nothing to send back to a
-  // dialog instance that's about to stop existing.
-  async function handleSwitchDashboardRequest(raw) {
-    logDebug(`switch-dashboard: request received for "${raw.shapeName}".`);
-    try {
-      const dashboards = await host.listDashboards();
-      const target = dashboards.find((d) => d.shapeName === raw.shapeName);
-      if (!target) {
-        logDebug(`switch-dashboard: "${raw.shapeName}" no longer exists.`);
-        return;
-      }
-      await openRestoredDashboard(target);
-    } catch (err) {
-      logDebug(`switch-dashboard: failed — ${err && err.message ? err.message : err}`);
-    }
-  }
-
   // The dialog asked to pick a different source. We can't do that
   // synchronously — hand control to the normal setup view and wait for the
   // user to finish picking and click "Use this range" (or cancel).
@@ -1339,8 +1266,58 @@
       rangeBtn.addEventListener('click', () => startListChangeRange(d));
       actions.appendChild(rangeBtn);
     }
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'dash-item-delete';
+    deleteBtn.title = 'Delete dashboard';
+    deleteBtn.setAttribute('aria-label', 'Delete dashboard');
+    deleteBtn.textContent = '×';
+    deleteBtn.addEventListener('click', () => showListDeleteConfirm(li, d));
+    actions.appendChild(deleteBtn);
     li.append(title, meta, actions);
     return li;
+  }
+
+  // Inline confirm instead of window.confirm() — consistent with the rest
+  // of this UI's own controls rather than a native browser dialog.
+  function showListDeleteConfirm(li, d) {
+    if (li.querySelector('.dash-item-confirm')) return;
+    if (state.currentShapeName === d.shapeName) {
+      els.buildError.textContent = `"${d.payload.title || d.shapeName}" is currently open — close it first, then delete it from the list.`;
+      els.buildError.hidden = false;
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'dash-item-confirm';
+    const msg = document.createElement('span');
+    msg.textContent = `Delete "${d.payload.title || d.shapeName}"?`;
+    const yesBtn = document.createElement('button');
+    yesBtn.type = 'button';
+    yesBtn.className = 'danger';
+    yesBtn.textContent = 'Delete';
+    yesBtn.addEventListener('click', () => commitListDelete(d));
+    const noBtn = document.createElement('button');
+    noBtn.type = 'button';
+    noBtn.textContent = 'Cancel';
+    noBtn.addEventListener('click', () => row.remove());
+    row.append(msg, yesBtn, noBtn);
+    li.appendChild(row);
+  }
+
+  async function commitListDelete(d) {
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    try {
+      await host.deleteDashboard(d.shapeName);
+      await refreshDashboardLists();
+    } catch (err) {
+      logDebug(`list-delete: failed — ${err && err.message ? err.message : err}`);
+      els.buildError.textContent = `Could not delete "${d.payload.title || d.shapeName}": ${err && err.message ? err.message : err}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
   }
 
   // Reopens a Generate-but-not-yet-placed dashboard (see

@@ -65,20 +65,6 @@
     // parent -> dialog: { ok:true } (a fresh DATA message follows separately)
     // or { ok:false, error } (including a plain cancel)
     OPEN_MAPPING_RESULT: 'open-mapping-result',
-    // dialog -> parent, sent when the settings panel's "Other dashboards"
-    // section is (re)opened — { } (no payload needed, the parent already
-    // knows which dashboard is currently open).
-    LIST_DASHBOARDS_REQUEST: 'list-dashboards-request',
-    // parent -> dialog: { ok:true, dashboards:[{shapeName,title,sourceAddress,generatedAt}] }
-    // (excludes whichever dashboard is currently open) or { ok:false, error }
-    LIST_DASHBOARDS_RESULT: 'list-dashboards-result',
-    // dialog -> parent: { shapeName } — the user picked a different saved
-    // dashboard from the settings panel's list. One-way: success means the
-    // parent opens a fresh dialog for it (closing this one in the process,
-    // per addin/taskpane.js's openDialog — see its "only one dialog at a
-    // time" comment), so there's nothing for this dialog instance to hear
-    // back; a target that no longer exists just logs on the parent side.
-    SWITCH_DASHBOARD_REQUEST: 'switch-dashboard-request',
   };
 
   // Conservative default, not a measured failure point of the real Office

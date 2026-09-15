@@ -210,8 +210,17 @@
   function renderKpi(w, theme) {
     const c = theme.color;
     const isHero = w.variant === 'hero';
-    const wrap = el('div', { style: absRect(w.rect, isHero ? {} : { borderLeft: `1px solid ${c.rule}`, paddingLeft: px(theme.spacing.md) }) });
-    wrap.appendChild(el('p', { style: { margin: 0, font: `${theme.type.kpiLabel}px ${theme.font.family}`, color: c.muted } }, w.label));
+    // overflow:hidden here is the actual fix for a long measure name
+    // bleeding into the next card — everything below is already sized to
+    // this rect, but nothing previously stopped text from spilling past it.
+    const wrap = el('div', { style: absRect(w.rect, Object.assign({ overflow: 'hidden' }, isHero ? {} : { borderLeft: `1px solid ${c.rule}`, paddingLeft: px(theme.spacing.md) })) });
+    wrap.appendChild(el('p', {
+      title: w.label,
+      style: {
+        margin: 0, font: `${theme.type.kpiLabel}px ${theme.font.family}`, color: c.muted,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      },
+    }, w.label));
     const valueStr = Format.formatMeasureValue(w, w.value, { negativeStyle: theme.negativeStyle });
     const negative = w.value != null && w.value < 0;
     const baseSize = isHero ? theme.type.kpiHero : theme.type.kpiValue;
@@ -225,7 +234,10 @@
       },
     }, valueStr));
     const caption = w.approximate ? 'Unweighted average — no verified weight base' : `${w.count.toLocaleString('en-US')} row${w.count === 1 ? '' : 's'}`;
-    wrap.appendChild(el('p', { style: { margin: 0, font: `${theme.type.kpiLabel - 1.5}px ${theme.font.family}`, color: c.faint } }, caption));
+    wrap.appendChild(el('p', {
+      title: caption,
+      style: { margin: 0, font: `${theme.type.kpiLabel - 1.5}px ${theme.font.family}`, color: c.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    }, caption));
     return wrap;
   }
 
@@ -563,37 +575,70 @@
       const from = state.page * visibleRows;
       const pageIdx = w.rowIndices.slice(from, from + visibleRows);
 
-      const table = el('table', { style: { borderCollapse: 'collapse', width: '100%', font: `${t.cellSize}px ${state.theme.font.family}`, flex: '1 1 auto' } });
+      // Cell strings computed once, up front — used both to size columns
+      // (the current page is a representative-enough sample of each
+      // column's typical length; scanning the full, possibly huge,
+      // rowIndices set on every render would cost far more for no real
+      // benefit) and to actually fill the body below, so formatCell only
+      // runs once per visible cell.
+      const cellStrings = pageIdx.map((rowIndex) => w.columns.map((col) => formatCell(col, columnsByName.get(col.name).values[rowIndex], state.theme)));
+      const availableWidth = w.rect.w - padPx * 2;
+      const colWidths = Format.computeColumnWidths(
+        w.columns.map((col, ci) => ({ header: col.name, samples: cellStrings.map((row) => row[ci]) })),
+        availableWidth, { fontSize: t.cellSize }
+      );
+      const tableWidth = colWidths.reduce((a, b) => a + b, 0); // never wider than needed — a table-layout:fixed table declared wider than its own colgroup sum lets the browser redistribute the gap onto columns itself, past our own maxWidth cap
+
+      // A column set whose combined minimum widths exceed the panel scrolls
+      // horizontally instead of clipping the rightmost columns outright —
+      // table-layout:fixed only respects colWidths if the table itself
+      // isn't forced back to 100% of a narrower parent.
+      const tableScroll = el('div', { style: { flex: '1 1 auto', overflowX: 'auto', overflowY: 'hidden' } });
+      const table = el('table', { style: { borderCollapse: 'collapse', tableLayout: 'fixed', width: px(tableWidth), font: `${t.cellSize}px ${state.theme.font.family}` } });
+      const colgroup = el('colgroup');
+      colWidths.forEach((cw) => colgroup.appendChild(el('col', { style: { width: px(cw) } })));
+      table.appendChild(colgroup);
+
       const thead = el('thead');
       const headRow = el('tr');
-      for (const col of w.columns) {
+      w.columns.forEach((col, ci) => {
         const isNum = col.role === 'measure';
         const sorted = w.sort.key === col.name;
+        const label = col.name + (sorted ? (w.sort.dir === 'asc' ? ' ↑' : ' ↓') : '');
         headRow.appendChild(el('th', {
+          title: col.name,
           style: {
             textAlign: isNum ? 'right' : 'left', padding: '4px 10px 8px', fontSize: px(t.headerSize), color: c.muted,
-            borderBottom: `1px solid ${c.rule}`, cursor: 'pointer', userSelect: 'none', fontWeight: 650, whiteSpace: 'nowrap',
+            borderBottom: `1px solid ${c.rule}`, cursor: 'pointer', userSelect: 'none', fontWeight: 650,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           },
           onclick: () => setState({ sort: { key: col.name, dir: sorted && w.sort.dir === 'asc' ? 'desc' : 'asc' }, page: 0 }),
-        }, col.name + (sorted ? (w.sort.dir === 'asc' ? ' ↑' : ' ↓') : '')));
-      }
+        }, label));
+      });
       thead.appendChild(headRow);
       table.appendChild(thead);
 
       const tbody = el('tbody');
-      for (const rowIndex of pageIdx) {
+      pageIdx.forEach((rowIndex, ri) => {
         const tr = el('tr');
-        for (const col of w.columns) {
+        w.columns.forEach((col, ci) => {
           const isNum = col.role === 'measure';
           const raw = columnsByName.get(col.name).values[rowIndex];
-          const str = formatCell(col, raw, state.theme);
+          const str = cellStrings[ri][ci];
           const isNegative = isNum && raw != null && raw < 0 && state.theme.negativeStyle === 'color';
-          tr.appendChild(el('td', { style: { textAlign: isNum ? 'right' : 'left', padding: '6px 10px', borderBottom: `1px solid ${c.ruleSoft}`, color: isNegative ? c.negative : c.ink, whiteSpace: 'nowrap' } }, str));
-        }
+          tr.appendChild(el('td', {
+            title: str,
+            style: {
+              textAlign: isNum ? 'right' : 'left', padding: '6px 10px', borderBottom: `1px solid ${c.ruleSoft}`,
+              color: isNegative ? c.negative : c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            },
+          }, str));
+        });
         tbody.appendChild(tr);
-      }
+      });
       table.appendChild(tbody);
-      inner.appendChild(table);
+      tableScroll.appendChild(table);
+      inner.appendChild(tableScroll);
 
       const footer = el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', font: `${t.headerSize}px ${state.theme.font.family}`, color: c.faint } });
       footer.appendChild(el('span', {}, `${from + 1}–${Math.min(from + visibleRows, w.rowIndices.length)} of ${w.totalRows.toLocaleString('en-US')} rows`));
@@ -714,16 +759,33 @@
       const from = state.page * visibleRows;
       const pageRows = w.rows.slice(from, from + visibleRows);
 
-      const table = el('table', { style: { borderCollapse: 'collapse', width: '100%', font: `${t.cellSize}px ${state.theme.font.family}`, flex: '1 1 auto' } });
+      // See render/dom.js's live renderTable for why widths/strings are
+      // computed together, up front, from just the current page.
+      const cellStrings = pageRows.map((rowValues) => w.columns.map((col, ci) => formatCell(col, rowValues[ci], state.theme)));
+      const availableWidth = w.rect.w - padPx * 2;
+      const colWidths = Format.computeColumnWidths(
+        w.columns.map((col, ci) => ({ header: col.name, samples: cellStrings.map((row) => row[ci]) })),
+        availableWidth, { fontSize: t.cellSize }
+      );
+      const tableWidth = colWidths.reduce((a, b) => a + b, 0); // never wider than needed — a table-layout:fixed table declared wider than its own colgroup sum lets the browser redistribute the gap onto columns itself, past our own maxWidth cap
+
+      const tableScroll = el('div', { style: { flex: '1 1 auto', overflowX: 'auto', overflowY: 'hidden' } });
+      const table = el('table', { style: { borderCollapse: 'collapse', tableLayout: 'fixed', width: px(tableWidth), font: `${t.cellSize}px ${state.theme.font.family}` } });
+      const colgroup = el('colgroup');
+      colWidths.forEach((cw) => colgroup.appendChild(el('col', { style: { width: px(cw) } })));
+      table.appendChild(colgroup);
+
       const thead = el('thead');
       const headRow = el('tr');
       for (const col of w.columns) {
         const isNum = col.role === 'measure';
         const sorted = state.sort && state.sort.key === col.name;
         headRow.appendChild(el('th', {
+          title: col.name,
           style: {
             textAlign: isNum ? 'right' : 'left', padding: '4px 10px 8px', fontSize: px(t.headerSize), color: c.muted,
-            borderBottom: `1px solid ${c.rule}`, cursor: 'pointer', userSelect: 'none', fontWeight: 650, whiteSpace: 'nowrap',
+            borderBottom: `1px solid ${c.rule}`, cursor: 'pointer', userSelect: 'none', fontWeight: 650,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           },
           onclick: () => setState({ sort: { key: col.name, dir: sorted && state.sort.dir === 'asc' ? 'desc' : 'asc' }, page: 0 }),
         }, col.name + (sorted ? (state.sort.dir === 'asc' ? ' ↑' : ' ↓') : '')));
@@ -732,19 +794,26 @@
       table.appendChild(thead);
 
       const tbody = el('tbody');
-      for (const rowValues of pageRows) {
+      pageRows.forEach((rowValues, ri) => {
         const tr = el('tr');
         w.columns.forEach((col, ci) => {
           const isNum = col.role === 'measure';
           const raw = rowValues[ci];
-          const str = formatCell(col, raw, state.theme);
+          const str = cellStrings[ri][ci];
           const isNegative = isNum && raw != null && raw < 0 && state.theme.negativeStyle === 'color';
-          tr.appendChild(el('td', { style: { textAlign: isNum ? 'right' : 'left', padding: '6px 10px', borderBottom: `1px solid ${c.ruleSoft}`, color: isNegative ? c.negative : c.ink, whiteSpace: 'nowrap' } }, str));
+          tr.appendChild(el('td', {
+            title: str,
+            style: {
+              textAlign: isNum ? 'right' : 'left', padding: '6px 10px', borderBottom: `1px solid ${c.ruleSoft}`,
+              color: isNegative ? c.negative : c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            },
+          }, str));
         });
         tbody.appendChild(tr);
-      }
+      });
       table.appendChild(tbody);
-      inner.appendChild(table);
+      tableScroll.appendChild(table);
+      inner.appendChild(tableScroll);
 
       const footer = el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', font: `${t.headerSize}px ${state.theme.font.family}`, color: c.faint } });
       footer.appendChild(el('span', {}, `${from + 1}–${Math.min(from + visibleRows, w.rows.length)} of ${w.shownRows} rows (snapshot)`));

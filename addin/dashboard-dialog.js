@@ -45,8 +45,8 @@
     settingsToggle: document.getElementById('dlg-settings-toggle'),
     settingsPanel: document.getElementById('dlg-settings'),
     settingsClose: document.getElementById('dlg-settings-close'),
-    settingsSwitch: document.getElementById('dlg-settings-switch'),
     settingsThemePicker: document.getElementById('dlg-theme-picker'),
+    settingsFilters: document.getElementById('dlg-settings-filters'),
     settingsKpis: document.getElementById('dlg-settings-kpis'),
     settingsCharts: document.getElementById('dlg-settings-charts'),
     settingsTableColumns: document.getElementById('dlg-settings-table-columns'),
@@ -217,7 +217,7 @@
       onTitleChange: onRenameTitle,
     });
     canvasSize = controller.getLayoutSpec().canvas;
-    applyScale();
+    syncCanvasWidthToStage();
   }
 
   // The pencil next to the title (render/dom.js#renderHeader) commits here.
@@ -265,29 +265,6 @@
       const requestId = Msg.sendChunked(parentSend, Msg.KIND.OPEN_MAPPING_REQUEST, currentRawState());
       pendingOpenMapping.set(requestId, { resolve });
     });
-  }
-
-  // ---- switch to another dashboard (settings panel's "Other dashboards") ----
-  const pendingListDashboards = new Map();
-  const listDashboardsResultReceiver = Msg.createChunkReceiver(Msg.KIND.LIST_DASHBOARDS_RESULT, (result, requestId) => {
-    const pending = pendingListDashboards.get(requestId);
-    if (!pending) return;
-    pendingListDashboards.delete(requestId);
-    pending.resolve(result);
-  });
-
-  function requestOtherDashboards() {
-    return new Promise((resolve) => {
-      const requestId = Msg.sendChunked(parentSend, Msg.KIND.LIST_DASHBOARDS_REQUEST, {});
-      pendingListDashboards.set(requestId, { resolve });
-    });
-  }
-
-  // One-way: the task pane closes this dialog and opens a fresh one for the
-  // target (addin/taskpane.js's openDialog / handleSwitchDashboardRequest) —
-  // nothing to wait for here.
-  function requestSwitchDashboard(shapeName) {
-    Msg.sendChunked(parentSend, Msg.KIND.SWITCH_DASHBOARD_REQUEST, { shapeName });
   }
 
   // ---- refresh ----
@@ -374,6 +351,7 @@
   // task pane) whenever it's (re)opened or a change here forces a remount. ----
   function syncSettingsPanel() {
     renderDialogThemePicker();
+    syncFiltersSection();
     syncKpiSection();
     syncChartsSection();
     syncTableColumnsSection();
@@ -398,6 +376,19 @@
     );
   }
 
+  // Shown under a settings checklist (KPI/Filters/Charts) once more boxes
+  // are checked than the dashboard has room for — LAYOUT.kpi.maxCards /
+  // LAYOUT.filterBar.maxVisible / LAYOUT.chart.maxCount are real, hard caps
+  // now (see engine/layout.js), so a checked box past the limit otherwise
+  // looks broken ("I checked it and nothing happened") instead of explained.
+  function appendLimitHint(container, enabledCount, limit) {
+    if (enabledCount <= limit) return;
+    const p = document.createElement('p');
+    p.className = 'mapping-hint';
+    p.textContent = `Showing the first ${limit} of ${enabledCount} checked — uncheck one to add another.`;
+    container.appendChild(p);
+  }
+
   function syncKpiSection() {
     els.settingsKpis.innerHTML = '';
     if (!currentAnalysis) return;
@@ -414,12 +405,49 @@
       label.appendChild(document.createTextNode(' ' + col.name));
       els.settingsKpis.appendChild(label);
     }
+    appendLimitHint(els.settingsKpis, enabled ? enabled.size : measures.length, Engine.Layout.LAYOUT.kpi.maxCards);
   }
 
   function onKpiToggle(name, checked, measures) {
     const current = widgetConfig.enabledKpis ? new Set(widgetConfig.enabledKpis) : new Set(measures.map((m) => m.name));
     if (checked) current.add(name); else current.delete(name);
     applyWidgetConfig({ enabledKpis: [...current] });
+  }
+
+  // Mirrors syncKpiSection exactly, for the settings panel's new "Filters"
+  // section — LAYOUT.filterBar.maxVisible (engine/layout.js) is applied
+  // AFTER this filter, so picking specific dimensions here is what actually
+  // decides which 4 show, not just "the first 4 in column order."
+  function syncFiltersSection() {
+    els.settingsFilters.innerHTML = '';
+    if (!currentAnalysis) return;
+    const dimensions = currentAnalysis.columns.filter((c) => c.decision.role === 'dimension');
+    if (!dimensions.length) {
+      const p = document.createElement('p');
+      p.className = 'mapping-hint';
+      p.textContent = 'No filterable columns for this data.';
+      els.settingsFilters.appendChild(p);
+      return;
+    }
+    const enabled = widgetConfig.enabledDimensions ? new Set(widgetConfig.enabledDimensions) : null;
+    for (const col of dimensions) {
+      const label = document.createElement('label');
+      label.className = 'settings-row';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = enabled ? enabled.has(col.name) : true;
+      input.addEventListener('change', () => onFilterToggle(col.name, input.checked, dimensions));
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(' ' + col.name));
+      els.settingsFilters.appendChild(label);
+    }
+    appendLimitHint(els.settingsFilters, enabled ? enabled.size : dimensions.length, Engine.Layout.LAYOUT.filterBar.maxVisible);
+  }
+
+  function onFilterToggle(name, checked, dimensions) {
+    const current = widgetConfig.enabledDimensions ? new Set(widgetConfig.enabledDimensions) : new Set(dimensions.map((d) => d.name));
+    if (checked) current.add(name); else current.delete(name);
+    applyWidgetConfig({ enabledDimensions: [...current] });
   }
 
   // Every non-excluded column is table-eligible (matches
@@ -548,6 +576,7 @@
 
       els.settingsCharts.appendChild(row);
     }
+    appendLimitHint(els.settingsCharts, enabledSet ? enabledSet.size : allCharts.length, Layout.LAYOUT.chart.maxCount);
   }
 
   function onChartEnabledToggle(chartId, checked, allCharts) {
@@ -572,42 +601,17 @@
   els.cfgTable.addEventListener('change', () => applyWidgetConfig({ showTable: els.cfgTable.checked }));
   els.cfgFilters.addEventListener('change', () => applyWidgetConfig({ showFilters: els.cfgFilters.checked }));
 
-  // First section in the panel (see dashboard-dialog.html) — a round trip
-  // to the task pane, so it's only fetched when the panel actually opens,
-  // not on every settings change that remounts the dashboard underneath it
-  // (syncSettingsPanel, called from mountLive, stays purely in-memory).
-  function syncOtherDashboardsSection() {
-    els.settingsSwitch.innerHTML = '<p class="settings-empty-hint">Loading…</p>';
-    requestOtherDashboards().then((result) => {
-      els.settingsSwitch.innerHTML = '';
-      if (!result.ok) {
-        els.settingsSwitch.innerHTML = `<p class="settings-empty-hint">Could not load: ${result.error}</p>`;
-        return;
-      }
-      if (!result.dashboards.length) {
-        els.settingsSwitch.innerHTML = '<p class="settings-empty-hint">No other dashboards in this workbook.</p>';
-        return;
-      }
-      for (const d of result.dashboards) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'switch-dash-item';
-        const when = d.generatedAt ? new Date(d.generatedAt).toLocaleString() : 'unknown time';
-        btn.innerHTML = `<span class="switch-dash-title"></span><span class="switch-dash-meta"></span>`;
-        btn.querySelector('.switch-dash-title').textContent = d.title;
-        btn.querySelector('.switch-dash-meta').textContent = `${d.sourceAddress} · generated ${when}`;
-        btn.addEventListener('click', () => requestSwitchDashboard(d.shapeName));
-        els.settingsSwitch.appendChild(btn);
-      }
-    });
-  }
-
-  els.settingsToggle.addEventListener('click', () => { syncSettingsPanel(); syncOtherDashboardsSection(); els.settingsPanel.hidden = false; });
+  els.settingsToggle.addEventListener('click', () => { syncSettingsPanel(); els.settingsPanel.hidden = false; });
   els.settingsClose.addEventListener('click', () => { els.settingsPanel.hidden = true; });
 
-  // ---- scale-to-fit ----
+  // ---- scale-to-fit (frozen mode only) ----
+  // A restored dashboard has no live source to recompute a layout from — the
+  // picture's composition is baked into layoutSpec.widgets already, so the
+  // only way to make it fit a different window size is to zoom the whole
+  // thing as one image. Live mode reflows for real instead — see
+  // syncCanvasWidthToStage below.
   function applyScale() {
-    if (!canvasSize) return;
+    if (mode !== 'frozen' || !canvasSize) return;
     const stage = els.mount.parentElement;
     const available = stage.clientWidth || canvasSize.width;
     const scale = Math.min(1, available / canvasSize.width);
@@ -615,12 +619,52 @@
     els.mount.style.transform = `scale(${scale})`;
     stage.style.overflowX = 'hidden';
   }
-  window.addEventListener('resize', applyScale);
+
+  // ---- reflow-to-fit (live mode only) ----
+  // Below this, text/charts get too cramped to be worth reflowing further —
+  // the stage scrolls horizontally instead of squeezing the layout past
+  // this point.
+  const MIN_CANVAS_WIDTH = 640;
+
+  // Rebuilds the skeleton at a new canvasWidth (widgetConfig.canvasWidth —
+  // engine/layout.js#buildSkeleton) via the exact same "remount with
+  // preserved state" path mountLive already uses for Refresh/theme changes,
+  // so activeFilters/sort survive a resize instead of resetting.
+  function remountForResize(newWidth) {
+    const liveState = controller.getState();
+    const seedReconciled = {
+      theme, palette,
+      widgetConfig: Object.assign({}, widgetConfig, { canvasWidth: newWidth }),
+      activeFilters: Object.fromEntries(Object.entries(liveState.activeFilters || {}).map(([k, v]) => [k, [...v]])),
+      sort: liveState.sort || null,
+    };
+    mountLive(seedReconciled, null, null);
+  }
+
+  function syncCanvasWidthToStage() {
+    if (mode !== 'live' || !controller) return;
+    const stage = els.mount.parentElement;
+    const available = stage.clientWidth || Engine.Layout.LAYOUT.width;
+    stage.style.overflowX = available < MIN_CANVAS_WIDTH ? 'auto' : 'hidden';
+    const newWidth = Math.max(MIN_CANVAS_WIDTH, Math.round(available));
+    const currentWidth = (widgetConfig && widgetConfig.canvasWidth) || Engine.Layout.LAYOUT.width;
+    // A few px of jitter (scrollbar appearing/disappearing, etc.) shouldn't
+    // trigger a full remount — only a real, visible width change should.
+    if (Math.abs(newWidth - currentWidth) < 8) return;
+    remountForResize(newWidth);
+  }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    applyScale();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(syncCanvasWidthToStage, 150);
+  });
 
   function start() {
     setStatus('Loading dashboard data…');
     initTransport(
-      (raw) => { dataReceiver(raw) || placeResultReceiver(raw) || openMappingResultReceiver(raw) || listDashboardsResultReceiver(raw) || refreshResultReceiver(raw) || changeRangeResultReceiver(raw); },
+      (raw) => { dataReceiver(raw) || placeResultReceiver(raw) || openMappingResultReceiver(raw) || refreshResultReceiver(raw) || changeRangeResultReceiver(raw); },
       () => Msg.sendChunked(parentSend, Msg.KIND.READY, {})
     );
   }

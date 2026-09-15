@@ -100,5 +100,83 @@
     return size;
   }
 
-  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize, mixHex };
+  // SVG <text> has no CSS text-overflow — used by render/svg.js's KPI label
+  // (render/dom.js gets the same effect from plain overflow:hidden +
+  // text-overflow:ellipsis instead, since it's real DOM). Same
+  // estimateTextWidth heuristic as fitFontSize, for the same reason: this
+  // has to run in Node too, no canvas/DOM text measurement available.
+  function truncateToWidth(str, maxWidth, fontSize) {
+    if (estimateTextWidth(str, fontSize) <= maxWidth) return str;
+    let end = str.length;
+    while (end > 0 && estimateTextWidth(str.slice(0, end) + '…', fontSize) > maxWidth) end -= 1;
+    return end > 0 ? str.slice(0, end) + '…' : '…';
+  }
+
+  /**
+   * Per-column table width, "autofit"-style: a column sized for its own
+   * typical content (header + a sample of formatted values — the current
+   * page is plenty, values in one column are rarely wildly different
+   * lengths) rather than every column splitting the width evenly. Every
+   * column is clamped to [minWidth, maxWidth] — the ceiling is what
+   * actually bounds "a very long value gets truncated"; a plain proportional
+   * scale-up when there's spare room would just hand it all to whichever
+   * column has the longest sample, blowing straight past that ceiling.
+   * @param {Array<{header:string, samples:string[]}>} columns
+   * @param {number} totalWidth
+   * @param {{fontSize?:number, minWidth?:number, maxWidth?:number, cellPadding?:number}} [opts]
+   * @returns {number[]} one width per column — sums to totalWidth when
+   *   content fits within [minWidth, maxWidth] per column with room to
+   *   spare; otherwise less (leftover space, columns narrower than
+   *   maxWidth need no more) or more (every column already at minWidth,
+   *   content genuinely doesn't fit — render/dom.js's horizontal scroll on
+   *   the table, not clipped columns, is the fallback for that case).
+   */
+  function computeColumnWidths(columns, totalWidth, opts) {
+    opts = opts || {};
+    const fontSize = opts.fontSize || 13;
+    const minWidth = opts.minWidth || 70;
+    const maxWidth = opts.maxWidth || 220;
+    const cellPadding = opts.cellPadding != null ? opts.cellPadding : 24;
+    if (!columns.length) return [];
+
+    const ideal = columns.map((col) => {
+      const longest = [col.header, ...col.samples].reduce((a, s) => Math.max(a, (s || '').length), 0);
+      return Math.min(maxWidth, Math.max(minWidth, estimateTextWidth('x'.repeat(longest), fontSize) + cellPadding));
+    });
+    const sum = ideal.reduce((a, b) => a + b, 0);
+
+    if (sum > totalWidth) {
+      // Doesn't fit even at each column's own (already-clamped) ideal width
+      // — scale every column down together, floored at minWidth. Can still
+      // sum to more than totalWidth if minWidths alone don't fit; that's
+      // the horizontal-scroll case, not something to fix here.
+      const scale = totalWidth / sum;
+      return ideal.map((w) => Math.max(minWidth, w * scale));
+    }
+
+    // Room to spare: water-fill the extra space onto columns that still
+    // have headroom below maxWidth, evenly, in rounds (a column that hits
+    // its ceiling stops absorbing more and the remainder keeps splitting
+    // across the rest) — never past maxWidth. Any part of the surplus left
+    // once every column is at its ceiling is simply unused table width,
+    // same as a spreadsheet's own "autofit" not force-filling the pane.
+    const widths = ideal.slice();
+    let remaining = totalWidth - sum;
+    let growable = widths.map((_, i) => i).filter((i) => widths[i] < maxWidth);
+    while (remaining > 0.5 && growable.length) {
+      const share = remaining / growable.length;
+      let used = 0;
+      growable = growable.filter((i) => {
+        const add = Math.min(maxWidth - widths[i], share);
+        widths[i] += add;
+        used += add;
+        return widths[i] < maxWidth - 0.01;
+      });
+      if (used < 0.5) break;
+      remaining -= used;
+    }
+    return widths;
+  }
+
+  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize, truncateToWidth, computeColumnWidths, mixHex };
 });

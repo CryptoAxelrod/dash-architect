@@ -157,6 +157,25 @@
   }
 
   /**
+   * Deletes a dashboard entirely: its on-sheet picture, if it has one (a
+   * draft — see saveGeneratedDraft — has none, and that's fine), and its
+   * settings entry. Used by the sidebar list's delete (×) action.
+   */
+  async function deleteDashboard(context, shapeName) {
+    const sheets = context.workbook.worksheets;
+    sheets.load('items');
+    await context.sync();
+    for (const sheet of sheets.items) sheet.shapes.load('items/name');
+    await context.sync();
+    for (const sheet of sheets.items) {
+      const match = sheet.shapes.items.find((s) => s.name === shapeName);
+      if (match) { match.delete(); break; }
+    }
+    context.workbook.settings.getItemOrNullObject(settingsKeyForShape(shapeName)).delete();
+    await context.sync();
+  }
+
+  /**
    * Counts dashboard-named shapes (any sheet) that have no matching
    * workbook.settings entry — the signature left behind when a workbook was
    * closed without saving after "Place on sheet": the picture itself is a
@@ -276,6 +295,7 @@
     listDashboards,
     loadDashboardSettings,
     deleteDashboardSettings,
+    deleteDashboard,
     countOrphanedDashboardShapes,
     generateAndPlace,
     saveGeneratedDraft,

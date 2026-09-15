@@ -18,7 +18,7 @@
   'use strict';
 
   const LAYOUT = {
-    width: 1180,
+    width: 1180, // default canvasWidth (widgetConfig.canvasWidth) — the static export always uses this unless the live view was a different width when placed; see buildSkeleton
     margin: { top: 32, right: 28, bottom: 40, left: 28 },
     gap: 28, // vertical gap between major sections
     header: { height: 60 },
@@ -26,25 +26,39 @@
     // sized for the worst case (maxVisible rows) so it never overlaps the
     // widget below it; most datasets show fewer than maxVisible and just
     // leave the rest of the box empty, same tradeoff every other fixed
-    // heuristic constant in this file makes.
-    filterBar: { height: 150, maxVisible: 5 },
+    // heuristic constant in this file makes. maxVisible dropped from 5 to 4
+    // (2026-09) — 5 rows routinely overflowed this fixed height; the rest
+    // are reachable via widgetConfig.enabledDimensions (settings panel's
+    // new "Filters" section) instead of just disappearing.
+    filterBar: { height: 150, maxVisible: 4 },
     kpi: {
-      maxCards: 6,
+      // Dropped from 6 to 4 (2026-09) — a long measure name in a 5th/6th
+      // secondary card had too little width to avoid overlapping its
+      // neighbor even with the truncation added alongside this (render/dom.js
+      // and render/svg.js's renderKpi) — 1 hero + 3 secondary is what
+      // LAYOUT.overview.kpiFraction's column width actually accommodates
+      // cleanly. The rest are reachable via widgetConfig.enabledKpis.
+      maxCards: 4,
       heroHeight: 150,
       secondaryHeight: 108,
       innerGap: 16, // between hero and the secondary row
       cardGap: 14, // between secondary cards
     },
     overview: { gap: 32, kpiFraction: 5 / 12 },
-    chart: { height: 264, gridGap: 20, maxCount: 4, maxDimensionCardinality: 12 },
+    // maxCount dropped from 4 to 3 (2026-09) — with 4, a remainder of 3
+    // charts below the overview row forced a 2-column grid whose last row
+    // held a single chart at half width, an orphaned-looking row. A
+    // remainder of at most 2 (maxCount 3) never produces that: it's either
+    // one full-width chart or an even 2-chart row.
+    chart: { height: 264, gridGap: 20, maxCount: 3, maxDimensionCardinality: 12 },
     // Shown instead of the KPI/chart block when classification produced
     // zero measure columns at all — see buildSkeleton below.
     emptyState: { height: 160 },
     table: { referenceRowHeight: 40, headerHeight: 40, footerHeight: 48, maxReferenceRows: 12, minReferenceRows: 3 },
   };
 
-  function contentWidth() {
-    return LAYOUT.width - LAYOUT.margin.left - LAYOUT.margin.right;
+  function contentWidth(canvasWidth) {
+    return canvasWidth - LAYOUT.margin.left - LAYOUT.margin.right;
   }
 
   // --- column selection (role-driven, no per-dataset special-casing) ---
@@ -57,11 +71,16 @@
     return { dimensions, measures, time, tableColumns, primaryMeasure: measures[0] || null };
   }
 
+  // Returns EVERY chart-eligible candidate, not just the first
+  // LAYOUT.chart.maxCount — capping happens later, in buildSkeleton, AFTER
+  // widgetConfig.enabledCharts is applied. Capping here first would mean a
+  // 4th+ eligible dimension's chart could never appear in the settings
+  // panel's "Charts" section at all, making it impossible to ever pick it
+  // instead of one of the first maxCount — the whole point of that section.
   function planCharts(sel) {
     const plan = [];
     if (sel.time && sel.primaryMeasure) plan.push({ kind: 'line', time: sel.time });
     for (const dim of sel.dimensions) {
-      if (plan.length >= LAYOUT.chart.maxCount) break;
       // chartEligible === false is a user override (mapping screen: "filter
       // only") — the column still drives the filter bar via sel.dimensions
       // below, it just never gets a chart of its own. Absent/true (auto-
@@ -72,7 +91,7 @@
     // Stable, order-based ids assigned right away — enabledCharts/
     // chartOverrides (settings-panel "Charts" section) key off these, and
     // need something to reference before enable-filtering can even run.
-    return plan.slice(0, LAYOUT.chart.maxCount).map((p, i) => Object.assign({ id: `chart-${i}` }, p));
+    return plan.map((p, i) => Object.assign({ id: `chart-${i}` }, p));
   }
 
   // A chart's "form of data" bounds which types it can become: a time
@@ -109,7 +128,10 @@
   // parts of each widget. Positions never change with filters or theme. ---
 
   function buildSkeleton(columns, rowCount, widgetConfig) {
-    const cfg = Object.assign({ enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, showCharts: true, showTable: true, showFilters: true }, widgetConfig);
+    const cfg = Object.assign(
+      { enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, enabledDimensions: null, showCharts: true, showTable: true, showFilters: true, canvasWidth: LAYOUT.width },
+      widgetConfig
+    );
     const sel = selectColumns(columns);
     // Not the same thing as "chartPlan/kpiMeasures ended up empty" below —
     // that can also happen when the user has simply unchecked every KPI and
@@ -126,13 +148,22 @@
     const hasAnyMeasure = sel.measures.length > 0;
     let chartPlan = cfg.showCharts && hasAnyMeasure ? planCharts(sel) : [];
     if (cfg.enabledCharts) chartPlan = chartPlan.filter((p) => cfg.enabledCharts.includes(p.id));
+    // Cap AFTER enabledCharts, not inside planCharts — see planCharts' own
+    // comment. Default (no enabledCharts set) keeps today's behavior: the
+    // first LAYOUT.chart.maxCount eligible, in column order.
+    chartPlan = chartPlan.slice(0, LAYOUT.chart.maxCount);
     if (cfg.chartOverrides) chartPlan = chartPlan.map((p) => applyChartOverride(p, sel, cfg.chartOverrides[p.id]));
     const kpiCandidates = cfg.enabledKpis ? sel.measures.filter((m) => cfg.enabledKpis.includes(m.name)) : sel.measures;
     const kpiMeasures = kpiCandidates.slice(0, LAYOUT.kpi.maxCards);
-    const filterDims = cfg.showFilters ? sel.dimensions.slice(0, LAYOUT.filterBar.maxVisible) : [];
-    const overflowDims = cfg.showFilters ? sel.dimensions.slice(LAYOUT.filterBar.maxVisible) : [];
+    // Same enabled/all pattern as kpiCandidates above — settings panel's new
+    // "Filters" section (addin/dashboard-dialog.js) — filtered BEFORE the
+    // maxVisible slice, so a deliberately-picked set of 4 is exactly what
+    // shows, not just "the first 4 in column order" among the enabled ones.
+    const dimCandidates = cfg.enabledDimensions ? sel.dimensions.filter((d) => cfg.enabledDimensions.includes(d.name)) : sel.dimensions;
+    const filterDims = cfg.showFilters ? dimCandidates.slice(0, LAYOUT.filterBar.maxVisible) : [];
+    const overflowDims = cfg.showFilters ? dimCandidates.slice(LAYOUT.filterBar.maxVisible) : [];
 
-    const W = contentWidth();
+    const W = contentWidth(cfg.canvasWidth);
     const x0 = LAYOUT.margin.left;
     let y = LAYOUT.margin.top;
     const widgets = [];
@@ -251,7 +282,7 @@
       y += tableH;
     }
 
-    return { canvas: { width: LAYOUT.width, height: y + LAYOUT.margin.bottom }, widgets, sel, chartPlan };
+    return { canvas: { width: cfg.canvasWidth, height: y + LAYOUT.margin.bottom }, widgets, sel, chartPlan };
   }
 
   function chartWidgetSkeleton(plan, primaryMeasure, id, rect) {

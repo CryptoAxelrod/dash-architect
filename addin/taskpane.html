@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dash Architect</title>
-<link rel="stylesheet" href="taskpane.css?v=1.9">
-<link rel="stylesheet" href="theme-picker.css?v=1.9">
+<link rel="stylesheet" href="taskpane.css?v=1.13">
+<link rel="stylesheet" href="theme-picker.css?v=1.13">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -31,14 +31,6 @@
     <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="9" width="14" height="3" rx="1"/><rect x="3" y="14" width="14" height="3" rx="1"/></svg>
   </button>
 </header>
-
-<!-- Temporary diagnostics for the "filters/hover don't work in the real
-     task pane" investigation — remove once resolved. Always visible once
-     populated, since the add-in host has no devtools console. -->
-<div class="debug-panel" id="debug-panel" hidden>
-  <div class="debug-head">Debug (temporary)</div>
-  <pre id="debug-log"></pre>
-</div>
 
 <!-- Deliberately outside <main>/<footer>: a placement failure is reported
      by the dialog (a separate window) and can land at any time, regardless
@@ -170,28 +162,28 @@
   </div>
 </footer>
 
-<script src="../engine/values.js?v=1.9"></script>
-<script src="../engine/csv.js?v=1.9"></script>
-<script src="../engine/clean.js?v=1.9"></script>
-<script src="../engine/profile.js?v=1.9"></script>
-<script src="../engine/roles.js?v=1.9"></script>
-<script src="../engine/aggregate.js?v=1.9"></script>
-<script src="../engine/layout.js?v=1.9"></script>
-<script src="../engine/reconcile.js?v=1.9"></script>
-<script src="../engine/index.js?v=1.9"></script>
-<script src="../render/format.js?v=1.9"></script>
-<script src="../render/palettes.js?v=1.9"></script>
-<script src="../render/themes.js?v=1.9"></script>
-<script src="../render/svg.js?v=1.9"></script>
-<script src="../render/share.js?v=1.9"></script>
-<script src="../render/dom.js?v=1.9"></script>
-<script src="theme-picker.js?v=1.9"></script>
-<script src="format-bridge.js?v=1.9"></script>
-<script src="excel-io.js?v=1.9"></script>
-<script src="dashboard-io.js?v=1.9"></script>
-<script src="dialog-messaging.js?v=1.9"></script>
+<script src="../engine/values.js?v=1.13"></script>
+<script src="../engine/csv.js?v=1.13"></script>
+<script src="../engine/clean.js?v=1.13"></script>
+<script src="../engine/profile.js?v=1.13"></script>
+<script src="../engine/roles.js?v=1.13"></script>
+<script src="../engine/aggregate.js?v=1.13"></script>
+<script src="../engine/layout.js?v=1.13"></script>
+<script src="../engine/reconcile.js?v=1.13"></script>
+<script src="../engine/index.js?v=1.13"></script>
+<script src="../render/format.js?v=1.13"></script>
+<script src="../render/palettes.js?v=1.13"></script>
+<script src="../render/themes.js?v=1.13"></script>
+<script src="../render/svg.js?v=1.13"></script>
+<script src="../render/share.js?v=1.13"></script>
+<script src="../render/dom.js?v=1.13"></script>
+<script src="theme-picker.js?v=1.13"></script>
+<script src="format-bridge.js?v=1.13"></script>
+<script src="excel-io.js?v=1.13"></script>
+<script src="dashboard-io.js?v=1.13"></script>
+<script src="dialog-messaging.js?v=1.13"></script>
 <!-- TEMPORARY — see addin/version.js; remove before release. -->
-<script src="version.js?v=1.9"></script>
-<script src="taskpane.js?v=1.9"></script>
+<script src="version.js?v=1.13"></script>
+<script src="taskpane.js?v=1.13"></script>
 </body>
 </html>
