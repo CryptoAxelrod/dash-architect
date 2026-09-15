@@ -882,7 +882,17 @@
     }
     const dlg = state.excel ? await openDialogExcel(url) : openDialogPreview(url);
     currentDialog = dlg;
-    dlg.addEventHandler(Office.EventType.DialogEventReceived, () => { if (currentDialog === dlg) currentDialog = null; });
+    dlg.addEventHandler(Office.EventType.DialogEventReceived, () => {
+      if (currentDialog !== dlg) return;
+      currentDialog = null;
+      // The dialog window closed on its own (the user clicked its native
+      // close button, not our "Start over") — this is the only way the
+      // pane finds out. Without this, the footer stayed stuck showing
+      // "Dashboard opened in a separate window" forever, and the list's
+      // "currently open" guards (rename/delete) kept refusing to touch a
+      // dashboard that wasn't open anymore.
+      if (state.analysis) setFooterState('idle');
+    });
     return dlg;
   }
 
@@ -1282,7 +1292,12 @@
   // of this UI's own controls rather than a native browser dialog.
   function showListDeleteConfirm(li, d) {
     if (li.querySelector('.dash-item-confirm')) return;
-    if (state.currentShapeName === d.shapeName) {
+    // state.currentShapeName alone isn't "open right now" — it also names
+    // whichever dashboard this pane would re-place if asked to, even after
+    // its dialog window was closed (so that a later "Place image on sheet"
+    // still updates the same shape). currentDialog is the actual "is a
+    // dialog window open right now" signal.
+    if (state.currentShapeName === d.shapeName && currentDialog) {
       els.buildError.textContent = `"${d.payload.title || d.shapeName}" is currently open — close it first, then delete it from the list.`;
       els.buildError.hidden = false;
       return;

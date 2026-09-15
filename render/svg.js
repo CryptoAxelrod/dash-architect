@@ -203,10 +203,14 @@
       'font-size': valueSize, 'font-weight': 750, 'font-family': theme.font.family,
     });
     const captionSize = theme.type.kpiLabel - 1.5;
-    const caption = truncateToWidth(
-      widget.approximate ? 'Unweighted average — no verified weight base' : `${widget.count.toLocaleString('en-US')} row${widget.count === 1 ? '' : 's'}`,
-      r.w, captionSize
-    );
+    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+    const rowsText = `${widget.count.toLocaleString('en-US')} row${widget.count === 1 ? '' : 's'}`;
+    const captionText = widget.approximate
+      ? 'Unweighted average — no verified weight base'
+      : widget.aggregationOverridden && AGGREGATION_LABELS[widget.aggregation]
+        ? `${AGGREGATION_LABELS[widget.aggregation]} · ${rowsText}`
+        : rowsText;
+    const caption = truncateToWidth(captionText, r.w, captionSize);
     out += text(r.x, r.y + theme.type.kpiLabel + valueSize + 16, caption, {
       fill: c.faint, 'font-size': captionSize, 'font-family': theme.font.family,
     });

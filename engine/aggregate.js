@@ -91,23 +91,61 @@
     return total / rowIndices.length;
   }
 
+  // Unlike sum/mean, a blank cell is simply excluded here rather than
+  // counted as 0 — a missing value isn't a real "low" (for min) or "high"
+  // (for max) reading, and treating it as one would silently invent a
+  // minimum/maximum that never actually occurred in the data.
+  function min(values, rowIndices) {
+    let m = null;
+    for (const i of rowIndices) {
+      const v = values[i];
+      if (v == null) continue;
+      if (m == null || v < m) m = v;
+    }
+    return m;
+  }
+
+  function max(values, rowIndices) {
+    let m = null;
+    for (const i of rowIndices) {
+      const v = values[i];
+      if (v == null) continue;
+      if (m == null || v > m) m = v;
+    }
+    return m;
+  }
+
   /**
-   * Aggregates one measure column over a row subset, honoring its
-   * classified aggregation strategy (see engine/roles.js). Returns a value
-   * already scaled to match how the column's own row values are displayed
-   * (see SPEC.md §8): a weighted measure with a resolved base is computed
-   * from the raw numerator/denominator sums, never from the percent values
-   * themselves; one without a base falls back to a flagged, unweighted mean.
+   * Aggregates one measure column over a row subset. Normally honors the
+   * column's classified aggregation strategy (see engine/roles.js), but
+   * `overrideAggregation` — a user's explicit Sum/Avg/Min/Max pick from the
+   * settings panel (widgetConfig.kpiAggregations / a chart's
+   * chartOverrides[id].aggregation) — takes full priority over that when
+   * given, bypassing the weighted numerator/denominator logic entirely.
+   * Returns a value already scaled to match how the column's own row values
+   * are displayed (see SPEC.md §8): a weighted measure with a resolved base
+   * is computed from the raw numerator/denominator sums, never from the
+   * percent values themselves; one without a base falls back to a flagged,
+   * unweighted mean.
    *
+   * @param {string} [overrideAggregation] 'sum' | 'avg' | 'min' | 'max'
    * @returns {{value: number|null, approximate: boolean}}
    */
-  function aggregateMeasure(column, rowIndices, columnsByName) {
+  function aggregateMeasure(column, rowIndices, columnsByName, overrideAggregation) {
     const { decision, values } = column;
+    const agg = overrideAggregation || decision.aggregation;
+    // Only a *deviation* from a verified weighted ratio counts as an
+    // approximation — overriding an already-plain sum measure to show its
+    // average instead is just a different, equally exact view of the same
+    // values, not a guess.
+    const approximateOverride = !!overrideAggregation && decision.aggregation === 'weighted' && overrideAggregation !== 'weighted';
 
-    if (decision.aggregation === 'sum') return { value: sum(values, rowIndices), approximate: false };
-    if (decision.aggregation === 'avg') return { value: mean(values, rowIndices), approximate: false };
+    if (agg === 'sum') return { value: sum(values, rowIndices), approximate: approximateOverride };
+    if (agg === 'avg') return { value: mean(values, rowIndices), approximate: approximateOverride };
+    if (agg === 'min') return { value: min(values, rowIndices), approximate: approximateOverride };
+    if (agg === 'max') return { value: max(values, rowIndices), approximate: approximateOverride };
 
-    if (decision.aggregation === 'weighted') {
+    if (agg === 'weighted') {
       if (decision.weightBase) {
         const num = columnsByName.get(decision.weightBase.numerator).values;
         const den = columnsByName.get(decision.weightBase.denominator).values;
@@ -152,7 +190,7 @@
    * the common "what stands out" ranked-bar convention; there is no
    * reference precedent for a categorical bar chart to follow instead.
    */
-  function groupByDimension(dimensionColumn, measureColumn, rowIndices, columnsByName) {
+  function groupByDimension(dimensionColumn, measureColumn, rowIndices, columnsByName, overrideAggregation) {
     const groups = new Map();
     for (const i of rowIndices) {
       const v = bucketKey(dimensionColumn.values[i]);
@@ -161,7 +199,7 @@
     }
     const out = [...groups.entries()].map(([category, idx]) => ({
       category,
-      ...aggregateMeasure(measureColumn, idx, columnsByName),
+      ...aggregateMeasure(measureColumn, idx, columnsByName, overrideAggregation),
       count: idx.length,
     }));
     out.sort((a, b) => (b.value || 0) - (a.value || 0) || a.category.localeCompare(b.category));
@@ -214,7 +252,7 @@
    * rule 3) has no real calendar to bucket — its own integer values are
    * the buckets, one per distinct year.
    */
-  function bucketByTime(timeColumn, measureColumn, rowIndices, columnsByName) {
+  function bucketByTime(timeColumn, measureColumn, rowIndices, columnsByName, overrideAggregation) {
     const isYearLike = timeColumn.decision.granularity === 'year';
     const unit = isYearLike ? null : chooseTimeUnit(timeColumn.profile.min, timeColumn.profile.max);
     const buckets = new Map();
@@ -229,7 +267,7 @@
 
     return [...buckets.values()]
       .sort((a, b) => (a.sortKey > b.sortKey ? 1 : a.sortKey < b.sortKey ? -1 : 0))
-      .map((b) => ({ label: b.label, ...aggregateMeasure(measureColumn, b.idx, columnsByName), count: b.idx.length }));
+      .map((b) => ({ label: b.label, ...aggregateMeasure(measureColumn, b.idx, columnsByName, overrideAggregation), count: b.idx.length }));
   }
 
   return {

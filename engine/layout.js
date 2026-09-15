@@ -50,7 +50,14 @@
     // held a single chart at half width, an orphaned-looking row. A
     // remainder of at most 2 (maxCount 3) never produces that: it's either
     // one full-width chart or an even 2-chart row.
-    chart: { height: 264, gridGap: 20, maxCount: 3, maxDimensionCardinality: 12 },
+    // horizontalBarThreshold/longLabelChars: same thresholds and same idea
+    // as automated-data-analyst's autovis.py (HORIZONTAL_BAR_THRESHOLD,
+    // LONG_LABEL_CHARACTERS) — a bar chart with more than a handful of
+    // categories, or whose category labels are long, reads better as
+    // horizontal bars (labels get room to the left instead of rotating or
+    // truncating under each bar). Only the default when nothing overrides
+    // it — a settings-panel chart-type pick always wins.
+    chart: { height: 264, gridGap: 20, maxCount: 3, maxDimensionCardinality: 12, horizontalBarThreshold: 6, longLabelChars: 12 },
     // Shown instead of the KPI/chart block when classification produced
     // zero measure columns at all — see buildSkeleton below.
     emptyState: { height: 160 },
@@ -101,11 +108,15 @@
   // plan kind) is the same {category, value} shape read three ways.
   const CHART_TYPE_OPTIONS = { line: ['line'], bar: ['bar', 'horizontalBar', 'donut'] };
 
+  // Shared by chart overrides and KPI overrides — the settings panel's
+  // Sum/Avg/Min/Max pick, see engine/aggregate.js#aggregateMeasure.
+  const VALID_AGGREGATIONS = ['sum', 'avg', 'min', 'max'];
+
   // Applies a settings-panel chart override (type / dimensionColumn /
-  // measureColumn) on top of one auto-planned chart — silently ignoring
-  // anything that doesn't resolve against the *current* classification
-  // (a stale override surviving a Refresh onto data that dropped the
-  // column it named), same "reconcile, don't crash" spirit as
+  // measureColumn / aggregation) on top of one auto-planned chart —
+  // silently ignoring anything that doesn't resolve against the *current*
+  // classification (a stale override surviving a Refresh onto data that
+  // dropped the column it named), same "reconcile, don't crash" spirit as
   // engine/reconcile.js.
   function applyChartOverride(plan, sel, override) {
     if (!override) return plan;
@@ -121,7 +132,17 @@
       const measure = sel.measures.find((m) => m.name === override.measureColumn);
       if (measure) next.measure = measure;
     }
+    if (override.aggregation && VALID_AGGREGATIONS.includes(override.aggregation)) next.overrideAggregation = override.aggregation;
     return next;
+  }
+
+  // widgetConfig.kpiAggregations — settings panel's per-measure Sum/Avg/
+  // Min/Max pick for a KPI card, keyed by measure name (a KPI has no
+  // separate "chart id" the way a chart does — its own column name already
+  // is a stable, unique key).
+  function kpiAggregationOverride(cfg, measureName) {
+    const picked = cfg.kpiAggregations && cfg.kpiAggregations[measureName];
+    return picked && VALID_AGGREGATIONS.includes(picked) ? picked : null;
   }
 
   // --- skeleton: widget ids/types/rects and the static (data-independent)
@@ -129,7 +150,7 @@
 
   function buildSkeleton(columns, rowCount, widgetConfig) {
     const cfg = Object.assign(
-      { enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, enabledDimensions: null, showCharts: true, showTable: true, showFilters: true, canvasWidth: LAYOUT.width },
+      { enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, enabledDimensions: null, kpiAggregations: null, showCharts: true, showTable: true, showFilters: true, canvasWidth: LAYOUT.width },
       widgetConfig
     );
     const sel = selectColumns(columns);
@@ -205,6 +226,7 @@
           type: 'kpi',
           variant: 'hero',
           column: hero.name,
+          aggregationOverride: kpiAggregationOverride(cfg, hero.name),
           rect: { x: x0, y, w: kpiW, h: LAYOUT.kpi.heroHeight },
         });
         if (secondary.length) {
@@ -216,6 +238,7 @@
               type: 'kpi',
               variant: 'secondary',
               column: m.name,
+              aggregationOverride: kpiAggregationOverride(cfg, m.name),
               rect: { x: x0 + i * (cardW + LAYOUT.kpi.cardGap), y: secY, w: cardW, h: LAYOUT.kpi.secondaryHeight },
             });
           });
@@ -285,14 +308,27 @@
     return { canvas: { width: cfg.canvasWidth, height: y + LAYOUT.margin.bottom }, widgets, sel, chartPlan };
   }
 
+  // Default bar orientation when nothing overrides it — same rule and same
+  // thresholds as automated-data-analyst's autovis.py: a category axis with
+  // more than a handful of values, or with long labels, reads better as
+  // horizontal bars (labels get room to the left instead of crowding
+  // together under each bar). profile.avgTextLength is already computed by
+  // engine/profile.js — no new measurement needed.
+  function defaultBarType(dimension) {
+    const p = dimension.profile;
+    if (p.uniqueCount > LAYOUT.chart.horizontalBarThreshold) return 'horizontalBar';
+    if (p.avgTextLength != null && p.avgTextLength > LAYOUT.chart.longLabelChars) return 'horizontalBar';
+    return 'bar';
+  }
+
   function chartWidgetSkeleton(plan, primaryMeasure, id, rect) {
     const measure = plan.measure || primaryMeasure;
     if (plan.kind === 'line') {
-      return { id, type: 'line', rect, title: `${measure.name} over time`, timeColumn: plan.time.name, measureColumn: measure.name };
+      return { id, type: 'line', rect, title: `${measure.name} over time`, timeColumn: plan.time.name, measureColumn: measure.name, aggregationOverride: plan.overrideAggregation || null };
     }
-    const type = plan.overrideType || 'bar';
+    const type = plan.overrideType || defaultBarType(plan.dimension);
     const verb = type === 'donut' ? 'share of' : 'by';
-    return { id, type, rect, title: `${measure.name} ${verb} ${plan.dimension.name}`, dimensionColumn: plan.dimension.name, measureColumn: measure.name };
+    return { id, type, rect, title: `${measure.name} ${verb} ${plan.dimension.name}`, dimensionColumn: plan.dimension.name, measureColumn: measure.name, aggregationOverride: plan.overrideAggregation || null };
   }
 
   // --- data fill: reads the skeleton's static fields, computes numbers
@@ -320,12 +356,18 @@
 
     if (widget.type === 'kpi') {
       const col = columnsByName.get(widget.column);
-      const agg = Aggregate.aggregateMeasure(col, rowIndices, columnsByName);
+      const agg = Aggregate.aggregateMeasure(col, rowIndices, columnsByName, widget.aggregationOverride);
       return Object.assign({}, widget, {
         label: col.name,
         value: agg.value,
         approximate: agg.approximate,
-        aggregation: col.decision.aggregation,
+        // The EFFECTIVE aggregation actually used (override, if any) — not
+        // always the classified default. `aggregationOverridden` tells the
+        // renderer whether to actually SHOW that as a label — render/dom.js
+        // #renderKpi does, whenever it's true, so Min/Avg/Max don't look
+        // indistinguishable from an unlabeled Sum.
+        aggregation: widget.aggregationOverride || col.decision.aggregation,
+        aggregationOverridden: !!widget.aggregationOverride,
         cellFormat: col.profile.cellFormat,
         valueScale: col.decision.valueScale || null,
         count: rowIndices.length,
@@ -335,8 +377,8 @@
     if (widget.type === 'line') {
       const timeCol = columnsByName.get(widget.timeColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
-      const points = Aggregate.bucketByTime(timeCol, measureCol, rowIndices, columnsByName);
-      return Object.assign({}, widget, { points, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
+      const points = Aggregate.bucketByTime(timeCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
+      return Object.assign({}, widget, { points, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
     }
 
     // 'bar' and 'horizontalBar' are the same {category, value} data, just
@@ -345,16 +387,16 @@
     if (widget.type === 'bar' || widget.type === 'horizontalBar') {
       const dimCol = columnsByName.get(widget.dimensionColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
-      const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName);
-      return Object.assign({}, widget, { bars, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
+      const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
+      return Object.assign({}, widget, { bars, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
     }
 
     if (widget.type === 'donut') {
       const dimCol = columnsByName.get(widget.dimensionColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
-      const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName);
+      const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
       const slices = bars.map((b) => ({ label: b.category, value: b.value }));
-      return Object.assign({}, widget, { slices, cellFormat: measureCol.profile.cellFormat, aggregation: measureCol.decision.aggregation, valueScale: measureCol.decision.valueScale || null });
+      return Object.assign({}, widget, { slices, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
     }
 
     if (widget.type === 'table') {
@@ -453,5 +495,5 @@
     return { canvas: layoutSpec.canvas, widgets };
   }
 
-  return { LAYOUT, selectColumns, planCharts, CHART_TYPE_OPTIONS, applyChartOverride, buildLayoutSpec, recompute, buildStorageSnapshot };
+  return { LAYOUT, selectColumns, planCharts, CHART_TYPE_OPTIONS, applyChartOverride, defaultBarType, buildLayoutSpec, recompute, buildStorageSnapshot };
 });

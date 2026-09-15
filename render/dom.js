@@ -233,7 +233,17 @@
         whiteSpace: 'nowrap',
       },
     }, valueStr));
-    const caption = w.approximate ? 'Unweighted average — no verified weight base' : `${w.count.toLocaleString('en-US')} row${w.count === 1 ? '' : 's'}`;
+    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+    const rowsText = `${w.count.toLocaleString('en-US')} row${w.count === 1 ? '' : 's'}`;
+    // A Min/Avg/Max pick from the settings panel looks identical to a plain
+    // Sum otherwise — same number formatting, no other visual cue — so a
+    // deliberate override gets spelled out; the classified default doesn't
+    // need to (nobody picked it, it's just what the measure naturally is).
+    const caption = w.approximate
+      ? 'Unweighted average — no verified weight base'
+      : w.aggregationOverridden && AGGREGATION_LABELS[w.aggregation]
+        ? `${AGGREGATION_LABELS[w.aggregation]} · ${rowsText}`
+        : rowsText;
     wrap.appendChild(el('p', {
       title: caption,
       style: { margin: 0, font: `${theme.type.kpiLabel - 1.5}px ${theme.font.family}`, color: c.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

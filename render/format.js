@@ -116,53 +116,53 @@
    * Per-column table width, "autofit"-style: a column sized for its own
    * typical content (header + a sample of formatted values — the current
    * page is plenty, values in one column are rarely wildly different
-   * lengths) rather than every column splitting the width evenly. Every
-   * column is clamped to [minWidth, maxWidth] — the ceiling is what
-   * actually bounds "a very long value gets truncated"; a plain proportional
-   * scale-up when there's spare room would just hand it all to whichever
-   * column has the longest sample, blowing straight past that ceiling.
+   * lengths) rather than every column splitting the width evenly or every
+   * column being squeezed down to fit no matter how many there are. A
+   * narrow column (a handful of short codes, say) stays narrow — floored at
+   * minChars so it's never *less* readable than that — and a column with
+   * genuinely long values caps out at maxChars rather than growing forever.
+   * If the columns' natural widths add up to more than `totalWidth`, this
+   * does NOT shrink them to fit — the table is meant to scroll horizontally
+   * for the overflow (render/dom.js wraps it in its own scroll container)
+   * rather than cram every column into an unreadable sliver. Only when
+   * there's room to *spare* does the extra get handed out, so a table with
+   * few columns still ends up using the full available width.
    * @param {Array<{header:string, samples:string[]}>} columns
    * @param {number} totalWidth
-   * @param {{fontSize?:number, minWidth?:number, maxWidth?:number, cellPadding?:number}} [opts]
-   * @returns {number[]} one width per column — sums to totalWidth when
-   *   content fits within [minWidth, maxWidth] per column with room to
-   *   spare; otherwise less (leftover space, columns narrower than
-   *   maxWidth need no more) or more (every column already at minWidth,
-   *   content genuinely doesn't fit — render/dom.js's horizontal scroll on
-   *   the table, not clipped columns, is the fallback for that case).
+   * @param {{fontSize?:number, minChars?:number, maxChars?:number, cellPadding?:number}} [opts]
+   * @returns {number[]} one width per column
    */
   function computeColumnWidths(columns, totalWidth, opts) {
     opts = opts || {};
     const fontSize = opts.fontSize || 13;
-    const minWidth = opts.minWidth || 70;
-    const maxWidth = opts.maxWidth || 220;
     const cellPadding = opts.cellPadding != null ? opts.cellPadding : 24;
+    const minWidth = estimateTextWidth('x'.repeat(opts.minChars || 5), fontSize) + cellPadding;
+    const maxWidth = estimateTextWidth('x'.repeat(opts.maxChars || 18), fontSize) + cellPadding;
     if (!columns.length) return [];
 
-    const ideal = columns.map((col) => {
+    const natural = columns.map((col) => {
       const longest = [col.header, ...col.samples].reduce((a, s) => Math.max(a, (s || '').length), 0);
-      return Math.min(maxWidth, Math.max(minWidth, estimateTextWidth('x'.repeat(longest), fontSize) + cellPadding));
+      return estimateTextWidth('x'.repeat(longest), fontSize) + cellPadding;
     });
-    const sum = ideal.reduce((a, b) => a + b, 0);
+    const widths = natural.map((w) => Math.min(maxWidth, Math.max(minWidth, w)));
+    const sum = widths.reduce((a, b) => a + b, 0);
 
-    if (sum > totalWidth) {
-      // Doesn't fit even at each column's own (already-clamped) ideal width
-      // — scale every column down together, floored at minWidth. Can still
-      // sum to more than totalWidth if minWidths alone don't fit; that's
-      // the horizontal-scroll case, not something to fix here.
-      const scale = totalWidth / sum;
-      return ideal.map((w) => Math.max(minWidth, w * scale));
-    }
+    // More columns than comfortably fit — let the table scroll horizontally
+    // for the rest instead of shrinking every column below its own natural
+    // width (that was the previous behavior, and it truncated far more
+    // aggressively than any single column's own content actually needed).
+    if (sum >= totalWidth) return widths;
 
-    // Room to spare: water-fill the extra space onto columns that still
-    // have headroom below maxWidth, evenly, in rounds (a column that hits
-    // its ceiling stops absorbing more and the remainder keeps splitting
-    // across the rest) — never past maxWidth. Any part of the surplus left
-    // once every column is at its ceiling is simply unused table width,
-    // same as a spreadsheet's own "autofit" not force-filling the pane.
-    const widths = ideal.slice();
+    // Room to spare: water-fill it onto columns whose OWN content actually
+    // wants more than the floor (natural[i] > minWidth) — a column that's
+    // narrow because its content genuinely is narrow (an ID column of
+    // 2-digit numbers, say) stays exactly that narrow instead of being
+    // stretched just because a neighbor needs the room. This is also what
+    // makes a table with few (but substantial) columns end up using the
+    // full available width: each grows up to maxChars rather than stopping
+    // at its own shorter sample.
     let remaining = totalWidth - sum;
-    let growable = widths.map((_, i) => i).filter((i) => widths[i] < maxWidth);
+    let growable = widths.map((_, i) => i).filter((i) => natural[i] > minWidth && widths[i] < maxWidth);
     while (remaining > 0.5 && growable.length) {
       const share = remaining / growable.length;
       let used = 0;

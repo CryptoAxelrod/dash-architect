@@ -389,23 +389,58 @@
     container.appendChild(p);
   }
 
+  // Shared by the KPI and Charts sections' aggregation pickers — "Default"
+  // means "no override, use whatever engine/roles.js classified this
+  // measure as" (sum, or a verified weighted ratio for a resolved
+  // percentage) rather than forcing a choice onto every row.
+  const AGGREGATION_OPTIONS = [['', 'Default'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Min'], ['max', 'Max']];
+  function buildAggregationSelect(value, onChange) {
+    const select = document.createElement('select');
+    for (const [v, label] of AGGREGATION_OPTIONS) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = label;
+      select.appendChild(opt);
+    }
+    select.value = value || '';
+    select.addEventListener('change', () => onChange(select.value || null));
+    return select;
+  }
+
   function syncKpiSection() {
     els.settingsKpis.innerHTML = '';
     if (!currentAnalysis) return;
     const measures = currentAnalysis.columns.filter((c) => c.decision.role === 'measure');
     const enabled = widgetConfig.enabledKpis ? new Set(widgetConfig.enabledKpis) : null;
+    const kpiAggregations = widgetConfig.kpiAggregations || {};
     for (const col of measures) {
+      const isEnabled = enabled ? enabled.has(col.name) : true;
+      const row = document.createElement('div');
+      row.className = 'chart-config-row';
       const label = document.createElement('label');
       label.className = 'settings-row';
       const input = document.createElement('input');
       input.type = 'checkbox';
-      input.checked = enabled ? enabled.has(col.name) : true;
+      input.checked = isEnabled;
       input.addEventListener('change', () => onKpiToggle(col.name, input.checked, measures));
       label.appendChild(input);
       label.appendChild(document.createTextNode(' ' + col.name));
-      els.settingsKpis.appendChild(label);
+      row.appendChild(label);
+      if (isEnabled) {
+        const controls = document.createElement('div');
+        controls.className = 'chart-config-controls';
+        controls.appendChild(buildAggregationSelect(kpiAggregations[col.name], (agg) => onKpiAggregationChange(col.name, agg)));
+        row.appendChild(controls);
+      }
+      els.settingsKpis.appendChild(row);
     }
     appendLimitHint(els.settingsKpis, enabled ? enabled.size : measures.length, Engine.Layout.LAYOUT.kpi.maxCards);
+  }
+
+  function onKpiAggregationChange(name, aggregation) {
+    const current = Object.assign({}, widgetConfig.kpiAggregations);
+    if (aggregation) current[name] = aggregation; else delete current[name];
+    applyWidgetConfig({ kpiAggregations: Object.keys(current).length ? current : null });
   }
 
   function onKpiToggle(name, checked, measures) {
@@ -543,7 +578,7 @@
             opt.textContent = t === 'horizontalBar' ? 'Horizontal bar' : t === 'donut' ? 'Donut' : 'Bar';
             typeSelect.appendChild(opt);
           }
-          typeSelect.value = effective.overrideType || 'bar';
+          typeSelect.value = effective.overrideType || Layout.defaultBarType(effective.dimension);
           typeSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { type: typeSelect.value }));
           controls.appendChild(typeSelect);
 
@@ -570,6 +605,8 @@
         measureSelect.value = measureName;
         measureSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { measureColumn: measureSelect.value }));
         controls.appendChild(measureSelect);
+
+        controls.appendChild(buildAggregationSelect(effective.overrideAggregation, (agg) => onChartOverrideChange(plan.id, { aggregation: agg })));
 
         row.appendChild(controls);
       }

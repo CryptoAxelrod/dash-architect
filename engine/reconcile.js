@@ -88,6 +88,17 @@
       });
       widgetConfig = Object.assign({}, widgetConfig, { enabledTableColumns: kept.length ? kept : null });
     }
+    // Settings panel's per-KPI Sum/Avg/Min/Max pick (engine/layout.js
+    // #kpiAggregationOverride) — keyed by measure name, same drop-if-gone
+    // treatment as enabledKpis above.
+    if (widgetConfig && widgetConfig.kpiAggregations) {
+      const cleaned = {};
+      for (const [name, agg] of Object.entries(widgetConfig.kpiAggregations)) {
+        const c = byName.get(name);
+        if (c && c.decision.role === 'measure') cleaned[name] = agg;
+      }
+      widgetConfig = Object.assign({}, widgetConfig, { kpiAggregations: Object.keys(cleaned).length ? cleaned : null });
+    }
     // chartOverrides' chart ids are positional (engine/layout.js#planCharts
     // assigns them fresh every build) so a stale id just silently stops
     // matching anything on the next build — nothing to reconcile there.
@@ -107,6 +118,9 @@
           const c = byName.get(override.measureColumn);
           if (c && c.decision.role === 'measure') next.measureColumn = override.measureColumn;
         }
+        // No column-name dependency (it's a fixed enum, not a reference) —
+        // carried through as-is, same as `type`.
+        if (override.aggregation) next.aggregation = override.aggregation;
         if (Object.keys(next).length) cleaned[chartId] = next;
       }
       widgetConfig = Object.assign({}, widgetConfig, { chartOverrides: Object.keys(cleaned).length ? cleaned : null });
