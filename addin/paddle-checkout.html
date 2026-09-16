@@ -4,29 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Upgrade to Pro</title>
+<!-- Reuses taskpane.css (same origin, already cached) for .plan-row/.plan-btn
+     etc. rather than duplicating those rules here — this page and the
+     footer's own long-gone plan picker used to share that markup; now this
+     is the only place it's used, see addin/taskpane.js#openPaddleCheckoutDialog. -->
+<link rel="stylesheet" href="taskpane.css?v=1.27">
+<style>
+  body { padding: 20px 18px; background: var(--paper); }
+  .checkout-title { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+  .checkout-sub { margin: 0 0 16px; font-size: 12.5px; color: var(--muted); }
+  .checkout-features { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .checkout-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .checkout-features svg { width: 15px; height: 15px; flex: none; }
+  .checkout-features circle { fill: var(--green); }
+  .checkout-features path { fill: none; stroke: #fff; stroke-width: 1.8; }
+  #loading { font-size: 13px; color: var(--muted); }
+</style>
 </head>
-<body style="font-family: system-ui, sans-serif; padding: 24px; color: #17231F;">
-<p>Loading checkout…</p>
+<body>
+<div id="picker">
+  <h2 class="checkout-title">Upgrade to Pro</h2>
+  <p class="checkout-sub">Pick a plan to continue to payment.</p>
+  <ul class="checkout-features">
+    <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10"/><path d="M5.5 10.3 8.8 13.6 14.5 6.8"/></svg>Unlimited dashboards</li>
+    <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10"/><path d="M5.5 10.3 8.8 13.6 14.5 6.8"/></svg>No watermark</li>
+  </ul>
+  <div class="plan-row">
+    <button type="button" class="plan-btn" id="plan-monthly">
+      <span class="plan-name">Monthly</span>
+      <span class="plan-price">$8<small>/mo</small></span>
+    </button>
+    <button type="button" class="plan-btn" id="plan-annual">
+      <span class="plan-name">Annual</span>
+      <span class="plan-price">$59<small>/yr</small></span>
+      <span class="plan-save">Save 39%</span>
+    </button>
+  </div>
+</div>
+<p id="loading" hidden>Loading checkout…</p>
 <!--
-  Opened only from addin/taskpane.js#startPaddleCheckout, only on an
+  Opened only from addin/taskpane.js#openPaddleCheckoutDialog, only on an
   explicit "Upgrade to Pro" click — see CLAUDE.md's Paddle exception (§3/§4)
   for why this is the one page in the whole add-in allowed to load
   paddle.js: unlike Supabase, hand-rolling card collection ourselves would
   mean taking on PCI DSS scope, which this project is never going to do.
 
-  price/uid/env/token all come from the query string (set by
-  startPaddleCheckout) rather than being hardcoded here, so this page has
-  no Paddle config of its own to keep in sync with addin/taskpane.js's.
+  Shows the plan comparison itself (this used to live in the task pane's
+  own footer as inline buttons — moved here so "Upgrade to Pro" is always
+  one dialog, not "sometimes a footer section, sometimes a second window,"
+  and so the plan choice isn't tied to whatever the footer happened to be
+  showing at the time, which was the actual bug that started this).
+
+  uid/env/token/priceMonthly/priceAnnual all come from the query string
+  (set by openPaddleCheckoutDialog) rather than being hardcoded here, so
+  this page has no Paddle config of its own to keep in sync with
+  addin/taskpane.js's.
 
   Reports back exactly like addin/auth-callback.html — same
   __dashDialogResult message, same both-channels-at-once send() pattern —
-  but this page doesn't decide anything about the user's Pro status
-  itself. It only ever says {status: 'completed'} or {status: 'closed'};
-  addin/taskpane.js treats 'completed' as "go poll profiles.is_pro for a
-  bit," never as "the user is Pro now." The actual grant happens
-  server-side, from Paddle's webhook (supabase/functions/paddle-webhook),
-  once Paddle itself confirms the charge — a message from this page alone
-  proves nothing (the client could just send it directly).
+  but only for an actual completed purchase. "checkout.closed" (backing
+  out of Paddle's own payment step) just re-shows the plan picker in place
+  rather than closing this dialog or messaging the parent — there's
+  nothing to report yet, the user might pick the other plan next. Only
+  actually closing this whole window unfinished counts as "the user backed
+  out," which addin/taskpane.js's openResultDialogExcel/Preview already
+  detect on their own (DialogEventReceived / win.closed).
+
+  This page doesn't decide anything about the user's Pro status itself —
+  it only ever says {status: 'completed'}; addin/taskpane.js treats that as
+  "go poll profiles.is_pro for a bit," never as "the user is Pro now." The
+  actual grant happens server-side, from Paddle's webhook
+  (supabase/functions/paddle-webhook), once Paddle itself confirms the
+  charge — a message from this page alone proves nothing (the client could
+  just send it directly).
 -->
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
@@ -34,10 +84,14 @@
 (function () {
   'use strict';
   var params = new URLSearchParams(location.search);
-  var priceId = params.get('price');
   var supabaseUserId = params.get('uid');
   var env = params.get('env');
   var token = params.get('token');
+  var priceMonthly = params.get('priceMonthly');
+  var priceAnnual = params.get('priceAnnual');
+
+  var pickerEl = document.getElementById('picker');
+  var loadingEl = document.getElementById('loading');
 
   function send(result) {
     if (window.opener) {
@@ -48,8 +102,17 @@
     }
   }
 
+  function openCheckout(priceId) {
+    pickerEl.hidden = true;
+    loadingEl.hidden = false;
+    Paddle.Checkout.open({
+      items: [{ priceId: priceId, quantity: 1 }],
+      customData: { supabase_user_id: supabaseUserId },
+    });
+  }
+
   function start() {
-    if (!priceId || !supabaseUserId || !token) {
+    if (!supabaseUserId || !token || !priceMonthly || !priceAnnual) {
       document.body.textContent = 'Missing checkout parameters.';
       send({ status: 'error', message: 'Missing checkout parameters.' });
       return;
@@ -62,14 +125,15 @@
           send({ status: 'completed' });
           setTimeout(function () { window.close(); }, 2500); // let Paddle's own confirmation screen show briefly first
         } else if (event.name === 'checkout.closed') {
-          send({ status: 'closed' });
+          // Backed out of payment, not out of this whole dialog — let them
+          // try the other plan instead of losing the window entirely.
+          pickerEl.hidden = false;
+          loadingEl.hidden = true;
         }
       },
     });
-    Paddle.Checkout.open({
-      items: [{ priceId: priceId, quantity: 1 }],
-      customData: { supabase_user_id: supabaseUserId },
-    });
+    document.getElementById('plan-monthly').addEventListener('click', function () { openCheckout(priceMonthly); });
+    document.getElementById('plan-annual').addEventListener('click', function () { openCheckout(priceAnnual); });
   }
 
   if (window.Office && typeof Office.onReady === 'function') Office.onReady(start);

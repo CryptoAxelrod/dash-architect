@@ -62,7 +62,6 @@
     rangeBeforeChangeRange: null,
     pendingListChangeRange: null, // {dashboard, rangeBeforePick, sourceBeforePick} while pickingFor === 'list-change-range' — a headless change-range for a dashboard that isn't open in any dialog
     accountStatus: null, // {dashboardsCreated, isPro} | null while still loading — drives the free-tier gate in syncIdleFooter()
-    showingPlanPicker: false, // true between clicking any "Upgrade to Pro" and picking a plan or cancelling
   };
   const FREE_DASHBOARD_LIMIT = 3; // matches the Paddle "Pro" tier's pitch — see supabase/migrations/0002_pro_flag.sql
 
@@ -331,10 +330,15 @@
       showList: $('show-list'), versionBadge: $('version-badge'),
       viewAuth: $('view-auth'), authForm: $('auth-form'), authEmail: $('auth-email'), authPassword: $('auth-password'),
       authSubmit: $('auth-submit'), authToggle: $('auth-toggle'), authTitle: $('auth-title'), authDesc: $('auth-desc'), authGoogle: $('auth-google'),
-      accountBar: $('account-bar'), accountEmail: $('account-email'), accountSignout: $('account-signout'),
+      accountBar: $('account-bar'), accountEmail: $('account-email'), accountProfile: $('account-profile'),
       accountUsage: $('account-usage'), usageDots: $('usage-dots'), usageLabel: $('usage-label'),
       accountProBadge: $('account-pro-badge'), accountUpgrade: $('account-upgrade'), upgradeCta: $('upgrade-cta'),
-      planRow: $('plan-row'), planMonthly: $('plan-monthly'), planAnnual: $('plan-annual'), planCancel: $('plan-cancel'),
+      viewProfile: $('view-profile'), profileBack: $('profile-back'), profileEmail: $('profile-email'),
+      profileFreeSection: $('profile-free-section'), profileUsageDots: $('profile-usage-dots'), profileUsageLabel: $('profile-usage-label'),
+      profileUpgrade: $('profile-upgrade'),
+      profileProSection: $('profile-pro-section'), profileCancelSub: $('profile-cancel-sub'),
+      profileCancelConfirm: $('profile-cancel-confirm'), profileCancelYes: $('profile-cancel-yes'), profileCancelNo: $('profile-cancel-no'),
+      profileSignout: $('profile-signout'),
       viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
       tableBadge: $('ref-table-badge'),
@@ -380,12 +384,16 @@
     els.authForm.addEventListener('submit', onAuthSubmit);
     els.authToggle.addEventListener('click', toggleAuthMode);
     els.authGoogle.addEventListener('click', onGoogleSignIn);
-    els.accountSignout.addEventListener('click', onSignOut);
+    els.accountProfile.addEventListener('click', showProfile);
     els.accountUpgrade.addEventListener('click', onUpgradeClick);
     els.upgradeCta.addEventListener('click', onUpgradeClick);
-    els.planMonthly.addEventListener('click', () => startPaddleCheckout(PADDLE_PRICE_MONTHLY));
-    els.planAnnual.addEventListener('click', () => startPaddleCheckout(PADDLE_PRICE_ANNUAL));
-    els.planCancel.addEventListener('click', hidePlanPicker);
+
+    els.profileBack.addEventListener('click', () => showView('setup'));
+    els.profileSignout.addEventListener('click', onSignOut);
+    els.profileUpgrade.addEventListener('click', onUpgradeClick);
+    els.profileCancelSub.addEventListener('click', () => { els.profileCancelConfirm.hidden = false; });
+    els.profileCancelNo.addEventListener('click', () => { els.profileCancelConfirm.hidden = true; });
+    els.profileCancelYes.addEventListener('click', onCancelSubscriptionConfirmed);
 
     if (state.excel) {
       Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
@@ -625,58 +633,52 @@
     syncIdleFooter();
   }
 
-  function onUpgradeClick(e) {
-    e.preventDefault();
-    state.showingPlanPicker = true;
-    showView('setup'); // the plan picker lives in the footer, only reachable from here
-    syncIdleFooter();
-  }
-
-  function hidePlanPicker() {
-    state.showingPlanPicker = false;
-    syncIdleFooter();
-  }
-
   // Opens addin/paddle-checkout.html in a dialog (same open-and-wait-for-
-  // one-message pattern as Google sign-in), tagging the checkout with this
-  // user's id so the Paddle webhook (supabase/functions/paddle-webhook)
-  // knows whose profile to flip. A 'completed' result is a UI cue to start
-  // polling, not proof of anything — see paddle-checkout.html's own
-  // comment on why the grant only ever happens server-side.
-  async function startPaddleCheckout(priceId) {
+  // one-message pattern as Google sign-in) — every "Upgrade to Pro"
+  // trigger (account bar, footer CTA, profile screen) calls this directly
+  // rather than revealing anything inline in the task pane itself. That
+  // used to be a footer section, gated on the same "has a dashboard
+  // loaded" state as the Generate/reopen buttons — which meant clicking
+  // Upgrade while a dashboard was open silently did nothing, since the
+  // footer had no room to show it. A dialog has no such state to be
+  // gated behind, so this fixes that as a side effect of not being
+  // footer-shaped anymore. The plan comparison itself now lives on
+  // paddle-checkout.html — see its own comment for why.
+  async function onUpgradeClick(e) {
+    if (e) e.preventDefault();
     if (state.busy) return;
     const session = window.DashAuth.getSession();
     if (!session) return;
     state.busy = true;
     els.buildError.hidden = true;
-    els.planMonthly.disabled = true;
-    els.planAnnual.disabled = true;
     try {
       const url = new URL('paddle-checkout.html', location.href);
-      url.searchParams.set('price', priceId);
       url.searchParams.set('uid', session.user.id);
       url.searchParams.set('env', PADDLE_ENVIRONMENT);
       url.searchParams.set('token', PADDLE_CLIENT_TOKEN);
+      url.searchParams.set('priceMonthly', PADDLE_PRICE_MONTHLY);
+      url.searchParams.set('priceAnnual', PADDLE_PRICE_ANNUAL);
+      // A 'completed' result is a UI cue to start polling, not proof of
+      // anything — see paddle-checkout.html's own comment on why the
+      // grant only ever happens server-side.
       const result = state.excel ? await openResultDialogExcel(url.href) : await openResultDialogPreview(url.href);
       if (result && result.status === 'completed') {
-        hidePlanPicker();
         await waitForProSync();
+        renderProfileSections();
       }
-      // status === 'closed' -> user backed out; leave the picker open so they can retry.
     } catch (err) {
       els.buildError.textContent = err && err.message ? err.message : 'Checkout did not complete.';
       els.buildError.hidden = false;
     } finally {
       state.busy = false;
-      els.planMonthly.disabled = false;
-      els.planAnnual.disabled = false;
     }
   }
 
   // The webhook needs a moment to land after Paddle's own checkout UI
   // already reports completion client-side — a few short polls covers the
   // normal case without leaving the account bar stuck on stale "Free
-  // limit reached" text right after paying.
+  // limit reached" text right after paying (or, from the profile screen,
+  // right after cancelling).
   async function waitForProSync() {
     const session = window.DashAuth.getSession();
     if (!session) return;
@@ -687,6 +689,53 @@
         if (status.isPro) return;
       }
       await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  // Profile screen (account-bar's Profile icon button) — plan status +
+  // Monthly/Annual (free) or Cancel subscription (Pro) + Sign out.
+  function renderProfileUsage(status) {
+    const used = Math.min(status.dashboardsCreated, FREE_DASHBOARD_LIMIT);
+    const remaining = Math.max(0, FREE_DASHBOARD_LIMIT - status.dashboardsCreated);
+    const dots = els.profileUsageDots.children;
+    for (let i = 0; i < dots.length; i++) dots[i].classList.toggle('filled', i < used);
+    els.profileUsageLabel.textContent = remaining > 0 ? `${plural(remaining, 'dashboard', 'dashboards')} left` : 'Free limit reached';
+    els.profileUsageLabel.classList.toggle('limit-reached', remaining === 0);
+  }
+
+  function renderProfileSections() {
+    const status = state.accountStatus;
+    const isPro = !!(status && status.isPro);
+    els.profileFreeSection.hidden = isPro;
+    els.profileProSection.hidden = !isPro;
+    if (status && !isPro) renderProfileUsage(status);
+  }
+
+  function showProfile() {
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    els.profileEmail.textContent = session.user.email;
+    els.profileCancelConfirm.hidden = true;
+    renderProfileSections();
+    showView('profile');
+  }
+
+  async function onCancelSubscriptionConfirmed() {
+    if (state.busy) return;
+    state.busy = true;
+    els.profileCancelYes.disabled = true;
+    els.buildError.hidden = true;
+    try {
+      await window.DashAuth.cancelSubscription();
+      els.profileCancelConfirm.hidden = true;
+      await waitForProSync();
+      renderProfileSections();
+    } catch (err) {
+      els.buildError.textContent = err && err.message ? err.message : 'Could not cancel subscription.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.profileCancelYes.disabled = false;
     }
   }
 
@@ -918,15 +967,8 @@
     // Only gates making a NEW dashboard — reopening one already generated,
     // or re-picking its source range, isn't blocked by the free-tier limit.
     const atLimit = !!status && !status.isPro && status.dashboardsCreated >= FREE_DASHBOARD_LIMIT;
-    // The persistent account-bar "Upgrade to Pro" link can open the plan
-    // picker even when nowhere near atLimit — it's only a real UI section
-    // (not just a modal) while on the plain setup screen, same as
-    // reopen-row/generate.
-    const showingPlans = state.showingPlanPicker && !hasDashboard && !changeRangeMode;
     els.generate.hidden = hasDashboard && !changeRangeMode;
-    els.upgradeCta.hidden = hasDashboard || changeRangeMode || !atLimit || showingPlans;
-    els.planRow.hidden = !showingPlans;
-    els.planCancel.hidden = !showingPlans;
+    els.upgradeCta.hidden = hasDashboard || changeRangeMode || !atLimit;
     els.reopenRow.hidden = !hasDashboard || changeRangeMode;
     els.cancelChangeRange.hidden = !changeRangeMode;
     els.ctaLabel.textContent = changeRangeMode ? 'Use this range' : 'Generate dashboard';
@@ -1295,6 +1337,11 @@
       // pre-generate theme/palette step above and dashboard-dialog.js#mountLive.
       initialTheme: state.theme,
       initialPalette: state.palette,
+      // Free-tier watermark gate — see addin/dashboard-dialog.js#mountLive.
+      // Not yet known (state.accountStatus still null right after sign-in,
+      // before fetchAccountStatus resolves) is treated as free/not-Pro —
+      // fails toward showing the watermark rather than silently omitting it.
+      isPro: !!(state.accountStatus && state.accountStatus.isPro),
     });
   }
 
@@ -1440,7 +1487,7 @@
         state.roleOverrides = overrides !== undefined ? overrides : state.roleOverrides;
         state.analysis = analysis;
         const meta = { title: state.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
-        sendDataToDialog(dlg, { mode: 'live', analysis, meta, seedState: raw, source: sourceLabel() });
+        sendDataToDialog(dlg, { mode: 'live', analysis, meta, seedState: raw, source: sourceLabel(), isPro: !!(state.accountStatus && state.accountStatus.isPro) });
         respond({ ok: true });
         showView('setup');
         setFooterState('open');
@@ -1881,7 +1928,17 @@
       const oldMapping = pending.dashboard.payload.mapping;
       const overrides = Array.isArray(oldMapping) ? mappingToOverrides(oldMapping) : null;
       const analysis = window.DashEngine.applyRoleOverrides(rawAnalysis, overrides);
-      const meta = { title: pending.dashboard.payload.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+      // This dashboard isn't open in any live dialog (that's the whole
+      // reason this headless path exists) — buildLayoutSpec gets no other
+      // widgetConfig here (a pre-existing gap: enabledKpis/chartOverrides/etc.
+      // from before this change-range are already lost by this path, not
+      // something introduced now), but the watermark still has to reflect
+      // the account's current Pro status rather than silently defaulting
+      // to "off," same reasoning as addin/dashboard-dialog.js#mountLive.
+      const meta = {
+        title: pending.dashboard.payload.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows`,
+        widgetConfig: { showWatermark: !(state.accountStatus && state.accountStatus.isPro) },
+      };
       const layoutSpec = window.DashEngine.buildLayoutSpec(analysis, meta);
       const theme = resolveDashboardTheme(pending.dashboard.payload);
       const columnsByName = window.DashEngine.Aggregate.byName(analysis.columns);
@@ -1920,6 +1977,7 @@
     els.viewList.hidden = name !== 'list';
     els.viewMapping.hidden = name !== 'mapping';
     els.viewTheme.hidden = name !== 'theme';
+    els.viewProfile.hidden = name !== 'profile';
     els.build.hidden = name !== 'setup';
     if (name === 'auth') els.accountBar.hidden = true;
   }
@@ -1942,7 +2000,6 @@
     state.lastDialogState = null;
     state.result = null;
     state.currentShapeName = null;
-    state.showingPlanPicker = false;
     if (currentDialog) {
       try { currentDialog.close(); } catch (e) { /* already gone */ }
       currentDialog = null;

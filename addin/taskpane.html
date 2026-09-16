@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dash Architect</title>
-<link rel="stylesheet" href="taskpane.css?v=1.24">
-<link rel="stylesheet" href="theme-picker.css?v=1.24">
+<link rel="stylesheet" href="taskpane.css?v=1.27">
+<link rel="stylesheet" href="theme-picker.css?v=1.27">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -42,7 +42,9 @@
        shrinks. -->
   <div class="account-row">
     <span class="account-email" id="account-email"></span>
-    <button type="button" class="btn-quiet account-signout" id="account-signout">Sign out</button>
+    <button type="button" class="icon-btn" id="account-profile" title="Profile" aria-label="Profile">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="6.5" r="3.5"/><path d="M3 17c0-3.9 3.13-7 7-7s7 3.1 7 7z"/></svg>
+    </button>
   </div>
   <div class="account-row">
     <!-- Free-tier usage — hidden entirely for Pro accounts (see account-pro-badge below). -->
@@ -181,6 +183,45 @@
     <button type="button" class="cta cta-static" id="theme-generate">Generate dashboard</button>
   </section>
 
+  <!-- Profile: subscription management + sign out — opened via the account
+       bar's Profile icon button (see addin/taskpane.js#showProfile). -->
+  <section class="view" id="view-profile" hidden>
+    <div class="list-head">
+      <h2>Profile</h2>
+      <button type="button" class="btn-quiet" id="profile-back">Back</button>
+    </div>
+    <p class="profile-email" id="profile-email"></p>
+
+    <!-- Free tier: same usage dots as the account bar, plus a way to
+         upgrade right here instead of only via the account bar's link.
+         Opens addin/paddle-checkout.html directly (addin/taskpane.js#onUpgradeClick)
+         — the plan comparison lives there now, not inline here. -->
+    <div class="profile-section" id="profile-free-section" hidden>
+      <div class="usage" id="profile-usage">
+        <span class="usage-dots" id="profile-usage-dots" aria-hidden="true">
+          <span class="usage-dot"></span><span class="usage-dot"></span><span class="usage-dot"></span>
+        </span>
+        <span class="usage-label" id="profile-usage-label"></span>
+      </div>
+      <p class="profile-hint">Upgrade to Pro for unlimited dashboards and no watermark.</p>
+      <button type="button" class="cta cta-upgrade" id="profile-upgrade">Upgrade to Pro</button>
+    </div>
+
+    <!-- Pro tier -->
+    <div class="profile-section" id="profile-pro-section" hidden>
+      <div class="account-pro-badge"><span class="pill">Pro</span></div>
+      <p class="profile-hint">Unlimited dashboards, no watermark.</p>
+      <button type="button" class="btn-quiet" id="profile-cancel-sub">Cancel subscription</button>
+      <div class="dash-item-confirm" id="profile-cancel-confirm" hidden>
+        <span>Cancel your subscription?</span>
+        <button type="button" class="danger" id="profile-cancel-yes">Cancel</button>
+        <button type="button" id="profile-cancel-no">Keep it</button>
+      </div>
+    </div>
+
+    <button type="button" class="btn-quiet profile-signout" id="profile-signout">Sign out</button>
+  </section>
+
 </main>
 
 <footer class="build" id="build" data-state="idle">
@@ -195,22 +236,10 @@
     </button>
     <!-- Free tier's 3 dashboards are used up — see addin/taskpane.js#syncIdleFooter.
          Sits right under the now-disabled Generate button rather than replacing
-         it, same pattern as reopen-row below. -->
+         it, same pattern as reopen-row below. Opens addin/paddle-checkout.html
+         directly (addin/taskpane.js#onUpgradeClick) — the plan comparison lives
+         there now, not inline here. -->
     <button type="button" class="cta cta-upgrade" id="upgrade-cta" hidden>Upgrade to Pro</button>
-    <!-- Plan choice, revealed by clicking either Upgrade to Pro trigger —
-         see addin/taskpane.js#revealPlanPicker/startPaddleCheckout. -->
-    <div class="plan-row" id="plan-row" hidden>
-      <button type="button" class="plan-btn" id="plan-monthly">
-        <span class="plan-name">Monthly</span>
-        <span class="plan-price">$8<small>/mo</small></span>
-      </button>
-      <button type="button" class="plan-btn" id="plan-annual">
-        <span class="plan-name">Annual</span>
-        <span class="plan-price">$59<small>/yr</small></span>
-        <span class="plan-save">Save 39%</span>
-      </button>
-    </div>
-    <button type="button" class="btn-quiet plan-cancel" id="plan-cancel" hidden>Cancel</button>
     <div class="cta-row" id="reopen-row" hidden>
       <button type="button" class="cta cta-static" id="reopen-dashboard">Open dashboard</button>
       <button type="button" class="btn-quiet" id="new-dashboard">New dashboard</button>
@@ -241,29 +270,29 @@
   </div>
 </footer>
 
-<script src="../engine/values.js?v=1.24"></script>
-<script src="../engine/csv.js?v=1.24"></script>
-<script src="../engine/clean.js?v=1.24"></script>
-<script src="../engine/profile.js?v=1.24"></script>
-<script src="../engine/roles.js?v=1.24"></script>
-<script src="../engine/aggregate.js?v=1.24"></script>
-<script src="../engine/layout.js?v=1.24"></script>
-<script src="../engine/reconcile.js?v=1.24"></script>
-<script src="../engine/index.js?v=1.24"></script>
-<script src="../render/format.js?v=1.24"></script>
-<script src="../render/palettes.js?v=1.24"></script>
-<script src="../render/themes.js?v=1.24"></script>
-<script src="../render/svg.js?v=1.24"></script>
-<script src="../render/share.js?v=1.24"></script>
-<script src="../render/dom.js?v=1.24"></script>
-<script src="theme-picker.js?v=1.24"></script>
-<script src="format-bridge.js?v=1.24"></script>
-<script src="excel-io.js?v=1.24"></script>
-<script src="dashboard-io.js?v=1.24"></script>
-<script src="dialog-messaging.js?v=1.24"></script>
-<script src="auth.js?v=1.24"></script>
+<script src="../engine/values.js?v=1.27"></script>
+<script src="../engine/csv.js?v=1.27"></script>
+<script src="../engine/clean.js?v=1.27"></script>
+<script src="../engine/profile.js?v=1.27"></script>
+<script src="../engine/roles.js?v=1.27"></script>
+<script src="../engine/aggregate.js?v=1.27"></script>
+<script src="../engine/layout.js?v=1.27"></script>
+<script src="../engine/reconcile.js?v=1.27"></script>
+<script src="../engine/index.js?v=1.27"></script>
+<script src="../render/format.js?v=1.27"></script>
+<script src="../render/palettes.js?v=1.27"></script>
+<script src="../render/themes.js?v=1.27"></script>
+<script src="../render/svg.js?v=1.27"></script>
+<script src="../render/share.js?v=1.27"></script>
+<script src="../render/dom.js?v=1.27"></script>
+<script src="theme-picker.js?v=1.27"></script>
+<script src="format-bridge.js?v=1.27"></script>
+<script src="excel-io.js?v=1.27"></script>
+<script src="dashboard-io.js?v=1.27"></script>
+<script src="dialog-messaging.js?v=1.27"></script>
+<script src="auth.js?v=1.27"></script>
 <!-- TEMPORARY — see addin/version.js; remove before release. -->
-<script src="version.js?v=1.24"></script>
-<script src="taskpane.js?v=1.24"></script>
+<script src="version.js?v=1.27"></script>
+<script src="taskpane.js?v=1.27"></script>
 </body>
 </html>

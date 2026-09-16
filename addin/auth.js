@@ -186,6 +186,24 @@
     return authedRequest('/rest/v1/rpc/increment_dashboard_count', { method: 'POST', body: '{}' });
   }
 
+  // Tells Paddle to cancel this user's subscription (via
+  // supabase/functions/paddle-cancel-subscription) — does not flip is_pro
+  // itself, that only ever happens from the resulting webhook. Caller
+  // (addin/taskpane.js) polls fetchAccountStatus afterward the same way it
+  // does right after checkout.
+  async function cancelSubscription() {
+    var s = await ensureFresh();
+    if (!s) throw new Error('Not signed in.');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/paddle-cancel-subscription', {
+      method: 'POST',
+      headers: anonHeaders({ Authorization: 'Bearer ' + s.access_token }),
+    });
+    if (!res.ok) {
+      var text = await res.text().catch(function () { return ''; });
+      throw new Error(text || ('Could not cancel subscription (' + res.status + ')'));
+    }
+  }
+
   root.DashAuth = {
     restoreSession: restoreSession,
     signUp: signUp,
@@ -196,5 +214,6 @@
     getSession: getSession,
     fetchAccountStatus: fetchAccountStatus,
     incrementDashboardCount: incrementDashboardCount,
+    cancelSubscription: cancelSubscription,
   };
 })(typeof window !== 'undefined' ? window : this);

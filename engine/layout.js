@@ -31,6 +31,13 @@
     // are reachable via widgetConfig.enabledDimensions (settings panel's
     // new "Filters" section) instead of just disappearing.
     filterBar: { height: 150, maxVisible: 4 },
+    // Reserves this many px at the right edge of whatever row it's anchored
+    // to (the filter bar's, or the header's if there's no filter bar) —
+    // see the `showWatermark` block in buildSkeleton. A fixed reserved
+    // width (not "measure the text and hug it") means this file never
+    // needs to know actual rendered text width, which depends on font
+    // metrics only /render knows.
+    watermark: { width: 200 },
     kpi: {
       // Dropped from 6 to 4 (2026-09) — a long measure name in a 5th/6th
       // secondary card had too little width to avoid overlapping its
@@ -150,7 +157,7 @@
 
   function buildSkeleton(columns, rowCount, widgetConfig) {
     const cfg = Object.assign(
-      { enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, enabledDimensions: null, kpiAggregations: null, showCharts: true, showTable: true, showFilters: true, canvasWidth: LAYOUT.width },
+      { enabledKpis: null, enabledCharts: null, chartOverrides: null, enabledTableColumns: null, enabledDimensions: null, kpiAggregations: null, showCharts: true, showTable: true, showFilters: true, showWatermark: false, canvasWidth: LAYOUT.width },
       widgetConfig
     );
     const sel = selectColumns(columns);
@@ -201,6 +208,22 @@
         overflow: overflowDims.map((d) => d.name),
       });
       y += LAYOUT.filterBar.height + LAYOUT.gap;
+    }
+
+    // Anchored to the filter bar's row when there is one (the rightmost
+    // widget.watermark.width px of it — filter chips rarely come close to
+    // using the full row width, see render/*.js's renderFilterBar), else
+    // to the header row, which is always present. Either way this is
+    // widgets[widgets.length - 1] at this exact point: header alone was
+    // just pushed if showFilters/filterDims left the block above skipped,
+    // filters last if not.
+    if (cfg.showWatermark) {
+      const host = widgets[widgets.length - 1];
+      widgets.push({
+        id: 'watermark',
+        type: 'watermark',
+        rect: { x: host.rect.x + host.rect.w - LAYOUT.watermark.width, y: host.rect.y, w: LAYOUT.watermark.width, h: host.rect.h },
+      });
     }
 
     const hasKpis = kpiMeasures.length > 0;
@@ -430,7 +453,7 @@
 
   /**
    * @param {{rowCount:number, columns:Array}} analysis result of engine/index.js#analyzeTable
-   * @param {{title?:string, subtitle?:string, widgetConfig?:{enabledKpis:?string[], showCharts:boolean, showTable:boolean, showFilters:boolean}}} [meta]
+   * @param {{title?:string, subtitle?:string, widgetConfig?:{enabledKpis:?string[], showCharts:boolean, showTable:boolean, showFilters:boolean, showWatermark:boolean}}} [meta]
    * @returns {{canvas:object, widgets:Array}} the full layoutSpec, unfiltered
    */
   function buildLayoutSpec(analysis, meta) {

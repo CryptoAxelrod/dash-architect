@@ -8,5 +8,5 @@
  */
 (function (root) {
   'use strict';
-  root.DASH_BUILD_VERSION = '1.24';
+  root.DASH_BUILD_VERSION = '1.27';
 })(typeof self !== 'undefined' ? self : this);

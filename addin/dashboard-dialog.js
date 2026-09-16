@@ -62,7 +62,14 @@
   let mode = null; // 'live' | 'frozen'
   let theme = 'light';
   let palette = Palettes.DEFAULT_PALETTE;
-  let widgetConfig = { enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true };
+  let widgetConfig = { enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true, showWatermark: false };
+  // Set from addin/taskpane.js's DATA message (the only side that knows the
+  // account's Pro status) and re-applied to widgetConfig on every
+  // mountLive — see there. Not part of widgetConfig itself: it isn't a
+  // per-dashboard display choice like showFilters/showCharts, it's an
+  // account fact, so it survives a seedState restore rather than being
+  // read from one (see mountLive).
+  let isPro = false;
   let currentAnalysis = null; // the analysis behind the live-mounted dashboard, if any — used to diff valueTypes and to reconcile a Refresh/Change-range result
   let currentMeta = null;
   let currentSourceLabel = '';
@@ -150,6 +157,12 @@
   function mountFromData(data) {
     setStatus('');
     mode = data.mode;
+    // Only ever sent by the task pane's own DATA messages, never by this
+    // dialog's internal refresh/change-range/mapping remounts (they just
+    // resend {mode, analysis, meta, seedState, source} — see mountFromData's
+    // callers) — so isPro naturally stays whatever it was for the rest of
+    // the session in those cases, instead of silently falling back to false.
+    if (data.isPro !== undefined) isPro = !!data.isPro;
     if (data.mode === 'frozen') {
       els.liveActions.hidden = true;
       // Live mode hides this row (see below) — the same theme switch lives
@@ -203,6 +216,12 @@
       if (initialTheme) theme = initialTheme;
       if (initialPalette) palette = initialPalette;
     }
+    // Always the current isPro, never whatever a restored seedState's
+    // widgetConfig happened to carry — a seed can be arbitrarily old (a
+    // dashboard reopened after upgrading/cancelling since it was last
+    // edited), and showFilters/showCharts etc. are fine to trust from it
+    // but Pro status is an account fact this dialog was just told fresh.
+    widgetConfig = Object.assign({}, widgetConfig, { showWatermark: !isPro });
     syncThemeButtons();
     syncSettingsPanel();
 

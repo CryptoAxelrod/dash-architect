@@ -173,6 +173,18 @@
     return g(out);
   }
 
+  // --- watermark (free tier only — see engine/layout.js's `showWatermark`
+  // widgetConfig flag; the widget only exists at all when that's true, so
+  // there's no separate check here) ---------------------------------------
+
+  function renderWatermark(widget, theme) {
+    const r = widget.rect;
+    return text(r.x + r.w - 6, r.y + r.h / 2 + 4, Format.WATERMARK_TEXT, {
+      fill: theme.color.faint, 'font-size': theme.type.axis, 'font-style': 'italic',
+      'text-anchor': 'end', 'font-family': theme.font.family,
+    });
+  }
+
   // --- filter bar (snapshot: shows current state, not interactive) ------
 
   function renderFilterBar(widget, theme) {
@@ -672,6 +684,7 @@
     if (widget.type === 'kpi') return renderKpi(widget, theme);
     if (widget.type === 'table') return renderTable(widget, theme, dataColumns);
     if (widget.type === 'emptyState') return renderEmptyState(widget, theme);
+    if (widget.type === 'watermark') return renderWatermark(widget, theme);
     return renderChart(widget, theme).markup; // hit regions are dom.js's concern, not the flattened PNG's
   }
 

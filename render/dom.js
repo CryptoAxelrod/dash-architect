@@ -260,6 +260,22 @@
   // (addin/dashboard-dialog.js's onOpenMapping / addin/taskpane.js's
   // handleOpenMappingRequest); omitted in frozen mode and anywhere else
   // reclassifying isn't possible, in which case only the explanation shows.
+  // Free tier only — see engine/layout.js's `showWatermark` widgetConfig
+  // flag; the widget only exists at all when that's true, so there's no
+  // separate check here. pointerEvents:'none' since its rect overlaps the
+  // filter bar's own (engine/layout.js reserves the rightmost slice of
+  // that same row for it) — it must never swallow a click meant for a
+  // filter chip underneath.
+  function renderWatermark(w, theme) {
+    return el('div', {
+      style: absRect(w.rect, {
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+        font: `italic ${theme.type.axis}px ${theme.font.family}`, color: theme.color.faint,
+        pointerEvents: 'none', whiteSpace: 'nowrap', paddingRight: '6px', boxSizing: 'border-box',
+      }),
+    }, Format.WATERMARK_TEXT);
+  }
+
   function renderEmptyState(w, theme, onOpenMapping) {
     const c = theme.color;
     const wrap = el('div', { style: Object.assign(absRect(w.rect), theme.card.style === 'panel'
@@ -494,6 +510,7 @@
       if (w.type === 'kpi') return renderKpi(w, state.theme);
       if (w.type === 'table') return renderTable(w);
       if (w.type === 'emptyState') return renderEmptyState(w, state.theme, onOpenMapping);
+      if (w.type === 'watermark') return renderWatermark(w, state.theme);
       return renderChartWidget(w, state.theme, addToFilter);
     }
 
@@ -737,6 +754,7 @@
       // reclassify (see this file's header comment); the message alone still
       // explains the blank space honestly instead of just leaving it empty.
       if (w.type === 'emptyState') return renderEmptyState(w, state.theme, null);
+      if (w.type === 'watermark') return renderWatermark(w, state.theme);
       return renderChartWidget(w, state.theme);
     }
 

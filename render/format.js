@@ -12,6 +12,12 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // Free-tier watermark copy — a single shared constant so render/dom.js's
+  // live view and render/svg.js's static export (the one that ends up in
+  // the placed picture, see engine/layout.js's `watermark` widget) can
+  // never drift apart into two different strings.
+  const WATERMARK_TEXT = 'Made with Dash Architect';
+
   // Lightens/darkens a hex color by mixing it toward another (e.g. the
   // theme's own paper color) — used for a chart's "muted" fill (every bar
   // but the highlighted one) from a palette color that, unlike the old
@@ -178,5 +184,5 @@
     return widths;
   }
 
-  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize, truncateToWidth, computeColumnWidths, mixHex };
+  return { formatNumber, shortNumber, formatPercent, formatMeasureValue, esc, estimateTextWidth, fitFontSize, truncateToWidth, computeColumnWidths, mixHex, WATERMARK_TEXT };
 });
