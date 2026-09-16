@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dash Architect</title>
-<link rel="stylesheet" href="taskpane.css?v=1.19">
-<link rel="stylesheet" href="theme-picker.css?v=1.19">
+<link rel="stylesheet" href="taskpane.css?v=1.24">
+<link rel="stylesheet" href="theme-picker.css?v=1.24">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </head>
 <body>
@@ -32,6 +32,31 @@
   </button>
 </header>
 
+<!-- Signed-in account + dashboard counter — hidden until a session exists
+     (see addin/taskpane.js#enterApp). Sits outside <main> for the same
+     reason build-error does: visible regardless of which view is showing. -->
+<div class="account-bar" id="account-bar" hidden>
+  <!-- Two fixed rows rather than one wrapping flex row — a real Excel task
+       pane can be as narrow as ~320px, too tight to fit email + usage +
+       upgrade + sign-out on one line at once no matter how much each piece
+       shrinks. -->
+  <div class="account-row">
+    <span class="account-email" id="account-email"></span>
+    <button type="button" class="btn-quiet account-signout" id="account-signout">Sign out</button>
+  </div>
+  <div class="account-row">
+    <!-- Free-tier usage — hidden entirely for Pro accounts (see account-pro-badge below). -->
+    <div class="usage" id="account-usage" hidden>
+      <span class="usage-dots" id="usage-dots" aria-hidden="true">
+        <span class="usage-dot"></span><span class="usage-dot"></span><span class="usage-dot"></span>
+      </span>
+      <span class="usage-label" id="usage-label"></span>
+    </div>
+    <div class="account-pro-badge" id="account-pro-badge" hidden><span class="pill">Pro</span></div>
+    <a href="#" class="account-upgrade" id="account-upgrade" hidden>Upgrade to Pro</a>
+  </div>
+</div>
+
 <!-- Deliberately outside <main>/<footer>: a placement failure is reported
      by the dialog (a separate window) and can land at any time, regardless
      of which view or footer state this pane happens to be showing — a
@@ -41,8 +66,44 @@
 
 <main id="views">
 
+  <!-- Gate: shown until addin/auth.js reports a valid session. Nothing
+       else in <main> is reachable before this — see
+       addin/taskpane.js#init/enterApp. Email+password only, no email
+       confirmation step (CLAUDE.md's Supabase exception, §3/§4) — signup
+       returns an active session immediately. -->
+  <section class="view" id="view-auth">
+    <section class="auth-step">
+      <h2 id="auth-title">Sign in</h2>
+      <p class="step-desc" id="auth-desc">Sign in to use Dash Architect.</p>
+
+      <form id="auth-form" class="auth-form" autocomplete="on">
+        <div class="title-field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" class="title-input" autocomplete="email" required>
+        </div>
+        <div class="title-field">
+          <label for="auth-password">Password</label>
+          <input type="password" id="auth-password" class="title-input" autocomplete="current-password" minlength="6" required>
+        </div>
+        <button type="submit" class="cta cta-static" id="auth-submit">Sign in</button>
+      </form>
+      <button type="button" class="btn-quiet auth-toggle" id="auth-toggle">Don't have an account? Sign up</button>
+
+      <div class="auth-divider"><span>or</span></div>
+      <button type="button" class="auth-google" id="auth-google">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
+        </svg>
+        Continue with Google
+      </button>
+    </section>
+  </section>
+
   <!-- Step 1: pick a range -->
-  <section class="view" id="view-setup">
+  <section class="view" id="view-setup" hidden>
     <!-- Shown only when the workbook already has saved dashboards — see
          addin/taskpane.js#refreshStartupList. Sits above the "choose data"
          step rather than replacing it: creating a new dashboard is always
@@ -132,6 +193,24 @@
       <span class="cta-fill" id="cta-fill"></span>
       <span class="cta-label" id="cta-label">Generate dashboard</span>
     </button>
+    <!-- Free tier's 3 dashboards are used up — see addin/taskpane.js#syncIdleFooter.
+         Sits right under the now-disabled Generate button rather than replacing
+         it, same pattern as reopen-row below. -->
+    <button type="button" class="cta cta-upgrade" id="upgrade-cta" hidden>Upgrade to Pro</button>
+    <!-- Plan choice, revealed by clicking either Upgrade to Pro trigger —
+         see addin/taskpane.js#revealPlanPicker/startPaddleCheckout. -->
+    <div class="plan-row" id="plan-row" hidden>
+      <button type="button" class="plan-btn" id="plan-monthly">
+        <span class="plan-name">Monthly</span>
+        <span class="plan-price">$8<small>/mo</small></span>
+      </button>
+      <button type="button" class="plan-btn" id="plan-annual">
+        <span class="plan-name">Annual</span>
+        <span class="plan-price">$59<small>/yr</small></span>
+        <span class="plan-save">Save 39%</span>
+      </button>
+    </div>
+    <button type="button" class="btn-quiet plan-cancel" id="plan-cancel" hidden>Cancel</button>
     <div class="cta-row" id="reopen-row" hidden>
       <button type="button" class="cta cta-static" id="reopen-dashboard">Open dashboard</button>
       <button type="button" class="btn-quiet" id="new-dashboard">New dashboard</button>
@@ -162,28 +241,29 @@
   </div>
 </footer>
 
-<script src="../engine/values.js?v=1.19"></script>
-<script src="../engine/csv.js?v=1.19"></script>
-<script src="../engine/clean.js?v=1.19"></script>
-<script src="../engine/profile.js?v=1.19"></script>
-<script src="../engine/roles.js?v=1.19"></script>
-<script src="../engine/aggregate.js?v=1.19"></script>
-<script src="../engine/layout.js?v=1.19"></script>
-<script src="../engine/reconcile.js?v=1.19"></script>
-<script src="../engine/index.js?v=1.19"></script>
-<script src="../render/format.js?v=1.19"></script>
-<script src="../render/palettes.js?v=1.19"></script>
-<script src="../render/themes.js?v=1.19"></script>
-<script src="../render/svg.js?v=1.19"></script>
-<script src="../render/share.js?v=1.19"></script>
-<script src="../render/dom.js?v=1.19"></script>
-<script src="theme-picker.js?v=1.19"></script>
-<script src="format-bridge.js?v=1.19"></script>
-<script src="excel-io.js?v=1.19"></script>
-<script src="dashboard-io.js?v=1.19"></script>
-<script src="dialog-messaging.js?v=1.19"></script>
+<script src="../engine/values.js?v=1.24"></script>
+<script src="../engine/csv.js?v=1.24"></script>
+<script src="../engine/clean.js?v=1.24"></script>
+<script src="../engine/profile.js?v=1.24"></script>
+<script src="../engine/roles.js?v=1.24"></script>
+<script src="../engine/aggregate.js?v=1.24"></script>
+<script src="../engine/layout.js?v=1.24"></script>
+<script src="../engine/reconcile.js?v=1.24"></script>
+<script src="../engine/index.js?v=1.24"></script>
+<script src="../render/format.js?v=1.24"></script>
+<script src="../render/palettes.js?v=1.24"></script>
+<script src="../render/themes.js?v=1.24"></script>
+<script src="../render/svg.js?v=1.24"></script>
+<script src="../render/share.js?v=1.24"></script>
+<script src="../render/dom.js?v=1.24"></script>
+<script src="theme-picker.js?v=1.24"></script>
+<script src="format-bridge.js?v=1.24"></script>
+<script src="excel-io.js?v=1.24"></script>
+<script src="dashboard-io.js?v=1.24"></script>
+<script src="dialog-messaging.js?v=1.24"></script>
+<script src="auth.js?v=1.24"></script>
 <!-- TEMPORARY — see addin/version.js; remove before release. -->
-<script src="version.js?v=1.19"></script>
-<script src="taskpane.js?v=1.19"></script>
+<script src="version.js?v=1.24"></script>
+<script src="taskpane.js?v=1.24"></script>
 </body>
 </html>

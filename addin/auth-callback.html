@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+</head>
+<body style="font-family: system-ui, sans-serif; padding: 24px; color: #17231F;">
+<p>Signing in… this window will close automatically.</p>
+<!--
+  Landing page for the Google OAuth redirect — addin/auth.js#authorizeUrl
+  points Supabase's redirect_to here. Supabase's implicit-flow redirect
+  lands the session tokens in the URL fragment (never sent to a server,
+  browser-only) rather than a JSON body, so this page's only job is to
+  parse that fragment and hand it back to whichever window opened it —
+  addin/taskpane.js's openResultDialogExcel/openResultDialogPreview
+  (shared with addin/paddle-checkout.html), depending on host (see those
+  for why both delivery channels are attempted).
+  Deliberately its own tiny page rather than reusing dashboard-dialog.html's
+  messaging (addin/dialog-messaging.js): that protocol is chunked JSON for
+  a whole layoutSpec, overkill for a handful of short tokens.
+-->
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script>
+(function () {
+  'use strict';
+  var params = {};
+  String(location.hash || '').replace(/^#/, '').split('&').forEach(function (kv) {
+    if (!kv) return;
+    var i = kv.indexOf('=');
+    var key = i === -1 ? kv : kv.slice(0, i);
+    var value = i === -1 ? '' : kv.slice(i + 1);
+    params[decodeURIComponent(key)] = decodeURIComponent(value.replace(/\+/g, '%20'));
+  });
+  // Supabase also reports errors (e.g. the user clicked "Cancel" on
+  // Google's consent screen) via query string, not the fragment.
+  String(location.search || '').replace(/^\?/, '').split('&').forEach(function (kv) {
+    if (!kv) return;
+    var i = kv.indexOf('=');
+    var key = i === -1 ? kv : kv.slice(0, i);
+    var value = i === -1 ? '' : kv.slice(i + 1);
+    if (!(key in params)) params[decodeURIComponent(key)] = decodeURIComponent((value || '').replace(/\+/g, '%20'));
+  });
+
+  function send() {
+    if (window.opener) {
+      try { window.opener.postMessage({ __dashDialogResult: true, params: params }, location.origin); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
+    }
+    if (window.Office && Office.context && Office.context.ui && Office.context.ui.messageParent) {
+      try { Office.context.ui.messageParent(JSON.stringify(params)); } catch (e) { /* not actually inside an Office dialog */ }
+    }
+  }
+
+  if (window.Office && typeof Office.onReady === 'function') Office.onReady(send);
+  else send();
+})();
+</script>
+</body>
+</html>

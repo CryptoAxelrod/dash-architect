@@ -61,7 +61,19 @@
     sourceBeforeChangeRange: null,
     rangeBeforeChangeRange: null,
     pendingListChangeRange: null, // {dashboard, rangeBeforePick, sourceBeforePick} while pickingFor === 'list-change-range' — a headless change-range for a dashboard that isn't open in any dialog
+    accountStatus: null, // {dashboardsCreated, isPro} | null while still loading — drives the free-tier gate in syncIdleFooter()
+    showingPlanPicker: false, // true between clicking any "Upgrade to Pro" and picking a plan or cancelling
   };
+  const FREE_DASHBOARD_LIMIT = 3; // matches the Paddle "Pro" tier's pitch — see supabase/migrations/0002_pro_flag.sql
+
+  // Sandbox for now — see CLAUDE.md's Paddle exception. Client-side token
+  // is meant to ship in client code (same trust level as Supabase's anon
+  // key): it can only open a checkout for prices that already exist in
+  // this Paddle account, nothing account-wide.
+  const PADDLE_ENVIRONMENT = 'sandbox';
+  const PADDLE_CLIENT_TOKEN = 'test_266ab403d21523250589711ed5d';
+  const PADDLE_PRICE_MONTHLY = 'pri_01m2ng7ke4gybp95b4ccngsbx5'; // $8/mo
+  const PADDLE_PRICE_ANNUAL = 'pri_01m2ng7ks13ea329a69s0ysf12'; // $59/yr
   let host = null;
   let currentDialog = null; // the dashboard-dialog.html window currently open, if any — see openDialog()
 
@@ -314,9 +326,16 @@
 
   /* ---------- wiring ---------- */
 
-  function init() {
+  async function init() {
     Object.assign(els, {
-      showList: $('show-list'), versionBadge: $('version-badge'), viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
+      showList: $('show-list'), versionBadge: $('version-badge'),
+      viewAuth: $('view-auth'), authForm: $('auth-form'), authEmail: $('auth-email'), authPassword: $('auth-password'),
+      authSubmit: $('auth-submit'), authToggle: $('auth-toggle'), authTitle: $('auth-title'), authDesc: $('auth-desc'), authGoogle: $('auth-google'),
+      accountBar: $('account-bar'), accountEmail: $('account-email'), accountSignout: $('account-signout'),
+      accountUsage: $('account-usage'), usageDots: $('usage-dots'), usageLabel: $('usage-label'),
+      accountProBadge: $('account-pro-badge'), accountUpgrade: $('account-upgrade'), upgradeCta: $('upgrade-cta'),
+      planRow: $('plan-row'), planMonthly: $('plan-monthly'), planAnnual: $('plan-annual'), planCancel: $('plan-cancel'),
+      viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
       tableBadge: $('ref-table-badge'),
       hint: $('ref-hint'), meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
@@ -358,15 +377,317 @@
     els.showList.addEventListener('click', showList);
     els.listBack.addEventListener('click', () => showView('setup'));
 
+    els.authForm.addEventListener('submit', onAuthSubmit);
+    els.authToggle.addEventListener('click', toggleAuthMode);
+    els.authGoogle.addEventListener('click', onGoogleSignIn);
+    els.accountSignout.addEventListener('click', onSignOut);
+    els.accountUpgrade.addEventListener('click', onUpgradeClick);
+    els.upgradeCta.addEventListener('click', onUpgradeClick);
+    els.planMonthly.addEventListener('click', () => startPaddleCheckout(PADDLE_PRICE_MONTHLY));
+    els.planAnnual.addEventListener('click', () => startPaddleCheckout(PADDLE_PRICE_ANNUAL));
+    els.planCancel.addEventListener('click', hidePlanPicker);
+
     if (state.excel) {
       Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
     }
 
     renderProgress();
-    refreshStartupList();
 
     // TEMPORARY — see addin/version.js; remove with it before release.
     if (window.DASH_BUILD_VERSION != null) els.versionBadge.textContent = `v${window.DASH_BUILD_VERSION}`;
+
+    // Nothing past this gate (the whole rest of <main>, the footer) is
+    // reachable without a session — see CLAUDE.md's Supabase exception.
+    // Everything above just wires listeners; it's fine for those to exist
+    // before sign-in since every element they touch stays hidden either way.
+    showView('auth');
+    els.authDesc.textContent = 'Checking your session…';
+    els.authSubmit.disabled = true;
+    els.authToggle.hidden = true;
+    const session = await window.DashAuth.restoreSession();
+    if (session) await enterApp();
+    else resetAuthForm();
+  }
+
+  /* ---------- auth gate ---------- */
+  let authMode = 'signin'; // 'signin' | 'signup' — which the form currently submits as
+
+  // Puts the sign-in form back to its default, interactive state — used
+  // both when restoreSession() at startup finds no session, and after
+  // sign-out (which reuses the same view but must not leave it in
+  // whatever transient state — "Checking your session…", a disabled
+  // submit — it happened to be in when the account bar's Sign out was
+  // clicked).
+  function resetAuthForm() {
+    authMode = 'signin';
+    els.authTitle.textContent = 'Sign in';
+    els.authDesc.textContent = 'Sign in to use Dash Architect.';
+    els.authSubmit.textContent = 'Sign in';
+    els.authSubmit.disabled = false;
+    els.authToggle.textContent = "Don't have an account? Sign up";
+    els.authToggle.hidden = false;
+    els.authPassword.autocomplete = 'current-password';
+  }
+
+  function toggleAuthMode() {
+    authMode = authMode === 'signin' ? 'signup' : 'signin';
+    els.buildError.hidden = true;
+    if (authMode === 'signup') {
+      els.authTitle.textContent = 'Create an account';
+      els.authDesc.textContent = 'No email confirmation needed — you can start right away.';
+      els.authSubmit.textContent = 'Sign up';
+      els.authToggle.textContent = 'Already have an account? Sign in';
+      els.authPassword.autocomplete = 'new-password';
+    } else {
+      els.authTitle.textContent = 'Sign in';
+      els.authDesc.textContent = 'Sign in to use Dash Architect.';
+      els.authSubmit.textContent = 'Sign in';
+      els.authToggle.textContent = "Don't have an account? Sign up";
+      els.authPassword.autocomplete = 'current-password';
+    }
+  }
+
+  async function onAuthSubmit(e) {
+    e.preventDefault();
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    els.authSubmit.disabled = true;
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+    try {
+      if (authMode === 'signup') await window.DashAuth.signUp(email, password);
+      else await window.DashAuth.signIn(email, password);
+      els.authPassword.value = '';
+      await enterApp();
+    } catch (err) {
+      els.buildError.textContent = err && err.message ? err.message : 'Could not sign in.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.authSubmit.disabled = false;
+    }
+  }
+
+  // Generic "open a dialog, wait for it to post back one JSON result"
+  // pair — used by both Google sign-in (opens Supabase's /authorize, ends
+  // up at addin/auth-callback.html) and Paddle checkout (opens
+  // addin/paddle-checkout.html directly). Deliberately not
+  // openDialog()/openDialogPreview() above: those are wired to
+  // dialog-messaging.js's chunked JSON protocol for the dashboard content
+  // dialog specifically (its messages are tagged __dashDialog); both
+  // callback pages here tag theirs __dashDialogResult instead, and post it
+  // via both channels (window messaging here, Office.context.ui.messageParent
+  // for the Excel case below) since neither knows which host it's running
+  // under.
+  function openResultDialogExcel(url) {
+    return new Promise((resolve, reject) => {
+      Office.context.ui.displayDialogAsync(url, { height: 60, width: 40, promptBeforeOpen: false }, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) { reject(new Error(result.error && result.error.message ? result.error.message : 'Could not open the window.')); return; }
+        const dlg = result.value;
+        let settled = false;
+        dlg.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+          if (settled) return;
+          settled = true;
+          dlg.close();
+          try { resolve(JSON.parse(arg.message)); } catch (err) { reject(err); }
+        });
+        dlg.addEventHandler(Office.EventType.DialogEventReceived, () => {
+          if (settled) return;
+          settled = true;
+          reject(new Error('Window closed before finishing.'));
+        });
+      });
+    });
+  }
+
+  function openResultDialogPreview(url) {
+    return new Promise((resolve, reject) => {
+      const win = window.open(url, 'dash-result-dialog', 'width=480,height=640');
+      if (!win) { reject(new Error('Pop-up blocked — allow pop-ups for this page and try again.')); return; }
+      let settled = false;
+      const onMessage = (e) => {
+        if (settled || e.source !== win || !e.data || e.data.__dashDialogResult !== true) return;
+        settled = true;
+        cleanup();
+        resolve(e.data.params);
+      };
+      const closedTimer = setInterval(() => {
+        if (win.closed && !settled) {
+          settled = true;
+          cleanup();
+          reject(new Error('Window closed before finishing.'));
+        }
+      }, 400);
+      function cleanup() {
+        clearInterval(closedTimer);
+        window.removeEventListener('message', onMessage);
+        if (!win.closed) win.close();
+      }
+      window.addEventListener('message', onMessage);
+    });
+  }
+
+  async function onGoogleSignIn() {
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    els.authGoogle.disabled = true;
+    try {
+      const redirectTo = new URL('auth-callback.html', location.href).href;
+      const url = window.DashAuth.authorizeUrl(redirectTo);
+      const params = state.excel ? await openResultDialogExcel(url) : await openResultDialogPreview(url);
+      await window.DashAuth.completeOAuthSession(params);
+      await enterApp();
+    } catch (err) {
+      els.buildError.textContent = err && err.message ? err.message : 'Could not sign in with Google.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.authGoogle.disabled = false;
+    }
+  }
+
+  async function onSignOut() {
+    if (state.busy) return;
+    state.busy = true;
+    try {
+      await window.DashAuth.signOut();
+    } catch (err) {
+      logDebug(`sign-out: ${err && err.message ? err.message : err}`);
+    } finally {
+      state.busy = false;
+    }
+    // Same full reset as startOver() (closes any open dialog, clears the
+    // in-pane session state) — a different account signing in next
+    // shouldn't see a leftover "Open dashboard" pointing at the previous
+    // one's in-memory analysis.
+    startOver();
+    els.authEmail.value = '';
+    els.authPassword.value = '';
+    resetAuthForm();
+    showView('auth');
+    state.accountStatus = null;
+    lastUsageDotsFilled = null; // a different account signing in next must not compare against this one's usage
+  }
+
+  // Runs once after a session exists — either restored at startup or just
+  // established by the sign-in/sign-up form.
+  async function enterApp() {
+    const session = window.DashAuth.getSession();
+    updateAccountBar(session, null);
+    showView('setup');
+    renderProgress();
+    await refreshStartupList();
+    window.DashAuth.fetchAccountStatus().then((status) => {
+      if (status) updateAccountBar(session, status);
+    }).catch(() => { /* leave whatever the bar already shows — not worth surfacing an error for */ });
+  }
+
+  // null until the first real status arrives — distinguishes "nothing known
+  // yet" from "0 used," so the pop animation below only ever fires on a
+  // live increment within this session, never on the initial render after
+  // sign-in/reload (where every dot showing up filled at once isn't a
+  // "just happened" event worth animating).
+  let lastUsageDotsFilled = null;
+
+  // status: {dashboardsCreated, isPro} | null (still loading, right after
+  // sign-in before fetchAccountStatus resolves — the bar shows the email
+  // but no usage/Pro indicator yet rather than a stale or wrong one).
+  function updateAccountBar(session, status) {
+    if (!session) return;
+    els.accountBar.hidden = false;
+    els.accountEmail.textContent = session.user.email;
+    state.accountStatus = status;
+
+    const isPro = !!(status && status.isPro);
+    els.accountProBadge.hidden = !isPro;
+    els.accountUpgrade.hidden = isPro;
+    els.accountUsage.hidden = !status || isPro;
+
+    if (status && !isPro) {
+      const used = Math.min(status.dashboardsCreated, FREE_DASHBOARD_LIMIT);
+      const remaining = Math.max(0, FREE_DASHBOARD_LIMIT - status.dashboardsCreated);
+      const dots = els.usageDots.children;
+      for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.toggle('filled', i < used);
+        dots[i].classList.remove('just-used');
+      }
+      if (lastUsageDotsFilled != null && used > lastUsageDotsFilled && dots[used - 1]) {
+        void dots[used - 1].offsetWidth; // restart the animation even on the same element as last time
+        dots[used - 1].classList.add('just-used');
+      }
+      lastUsageDotsFilled = used;
+      els.usageLabel.textContent = remaining > 0 ? `${plural(remaining, 'dashboard', 'dashboards')} left` : 'Free limit reached';
+      els.usageLabel.classList.toggle('limit-reached', remaining === 0);
+    }
+
+    syncIdleFooter();
+  }
+
+  function onUpgradeClick(e) {
+    e.preventDefault();
+    state.showingPlanPicker = true;
+    showView('setup'); // the plan picker lives in the footer, only reachable from here
+    syncIdleFooter();
+  }
+
+  function hidePlanPicker() {
+    state.showingPlanPicker = false;
+    syncIdleFooter();
+  }
+
+  // Opens addin/paddle-checkout.html in a dialog (same open-and-wait-for-
+  // one-message pattern as Google sign-in), tagging the checkout with this
+  // user's id so the Paddle webhook (supabase/functions/paddle-webhook)
+  // knows whose profile to flip. A 'completed' result is a UI cue to start
+  // polling, not proof of anything — see paddle-checkout.html's own
+  // comment on why the grant only ever happens server-side.
+  async function startPaddleCheckout(priceId) {
+    if (state.busy) return;
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    els.planMonthly.disabled = true;
+    els.planAnnual.disabled = true;
+    try {
+      const url = new URL('paddle-checkout.html', location.href);
+      url.searchParams.set('price', priceId);
+      url.searchParams.set('uid', session.user.id);
+      url.searchParams.set('env', PADDLE_ENVIRONMENT);
+      url.searchParams.set('token', PADDLE_CLIENT_TOKEN);
+      const result = state.excel ? await openResultDialogExcel(url.href) : await openResultDialogPreview(url.href);
+      if (result && result.status === 'completed') {
+        hidePlanPicker();
+        await waitForProSync();
+      }
+      // status === 'closed' -> user backed out; leave the picker open so they can retry.
+    } catch (err) {
+      els.buildError.textContent = err && err.message ? err.message : 'Checkout did not complete.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.planMonthly.disabled = false;
+      els.planAnnual.disabled = false;
+    }
+  }
+
+  // The webhook needs a moment to land after Paddle's own checkout UI
+  // already reports completion client-side — a few short polls covers the
+  // normal case without leaving the account bar stuck on stale "Free
+  // limit reached" text right after paying.
+  async function waitForProSync() {
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    for (let i = 0; i < 6; i++) {
+      const status = await window.DashAuth.fetchAccountStatus().catch(() => null);
+      if (status) {
+        updateAccountBar(session, status);
+        if (status.isPro) return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   }
 
   // Shows saved dashboards directly on the startup screen, above "Choose
@@ -593,11 +914,23 @@
   function syncIdleFooter() {
     const changeRangeMode = state.pickingFor === 'change-range' || state.pickingFor === 'list-change-range';
     const hasDashboard = !!state.analysis;
+    const status = state.accountStatus;
+    // Only gates making a NEW dashboard — reopening one already generated,
+    // or re-picking its source range, isn't blocked by the free-tier limit.
+    const atLimit = !!status && !status.isPro && status.dashboardsCreated >= FREE_DASHBOARD_LIMIT;
+    // The persistent account-bar "Upgrade to Pro" link can open the plan
+    // picker even when nowhere near atLimit — it's only a real UI section
+    // (not just a modal) while on the plain setup screen, same as
+    // reopen-row/generate.
+    const showingPlans = state.showingPlanPicker && !hasDashboard && !changeRangeMode;
     els.generate.hidden = hasDashboard && !changeRangeMode;
+    els.upgradeCta.hidden = hasDashboard || changeRangeMode || !atLimit || showingPlans;
+    els.planRow.hidden = !showingPlans;
+    els.planCancel.hidden = !showingPlans;
     els.reopenRow.hidden = !hasDashboard || changeRangeMode;
     els.cancelChangeRange.hidden = !changeRangeMode;
     els.ctaLabel.textContent = changeRangeMode ? 'Use this range' : 'Generate dashboard';
-    els.generate.disabled = !state.range;
+    els.generate.disabled = !state.range || (atLimit && !changeRangeMode);
   }
 
   // No-op: the temporary debug panel this fed is gone (it got in the way
@@ -790,6 +1123,12 @@
         els.buildError.textContent = `Generated, but could not save it to your dashboard list yet: ${draftErr && draftErr.message ? draftErr.message : draftErr}. You can still place it on the sheet from the dialog.`;
         els.buildError.hidden = false;
       }
+      // Best-effort — a counter hiccup shouldn't block the dashboard the
+      // user is actually here for. Not awaited into the critical path for
+      // the same reason.
+      window.DashAuth.incrementDashboardCount().then((n) => {
+        if (n != null) updateAccountBar(window.DashAuth.getSession(), Object.assign({}, state.accountStatus, { dashboardsCreated: n }));
+      }).catch((err) => logDebug(`dashboard-count increment failed — ${err && err.message ? err.message : err}`));
       await openLiveDashboard();
       showView('setup');
       setFooterState('open');
@@ -1576,11 +1915,13 @@
 
   /* ---------- view/footer state ---------- */
   function showView(name) {
+    els.viewAuth.hidden = name !== 'auth';
     els.viewSetup.hidden = name !== 'setup';
     els.viewList.hidden = name !== 'list';
     els.viewMapping.hidden = name !== 'mapping';
     els.viewTheme.hidden = name !== 'theme';
-    els.build.hidden = name === 'list' || name === 'mapping' || name === 'theme';
+    els.build.hidden = name !== 'setup';
+    if (name === 'auth') els.accountBar.hidden = true;
   }
 
   function setFooterState(s) {
@@ -1601,6 +1942,7 @@
     state.lastDialogState = null;
     state.result = null;
     state.currentShapeName = null;
+    state.showingPlanPicker = false;
     if (currentDialog) {
       try { currentDialog.close(); } catch (e) { /* already gone */ }
       currentDialog = null;

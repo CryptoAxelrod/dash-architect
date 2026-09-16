@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upgrade to Pro</title>
+</head>
+<body style="font-family: system-ui, sans-serif; padding: 24px; color: #17231F;">
+<p>Loading checkout…</p>
+<!--
+  Opened only from addin/taskpane.js#startPaddleCheckout, only on an
+  explicit "Upgrade to Pro" click — see CLAUDE.md's Paddle exception (§3/§4)
+  for why this is the one page in the whole add-in allowed to load
+  paddle.js: unlike Supabase, hand-rolling card collection ourselves would
+  mean taking on PCI DSS scope, which this project is never going to do.
+
+  price/uid/env/token all come from the query string (set by
+  startPaddleCheckout) rather than being hardcoded here, so this page has
+  no Paddle config of its own to keep in sync with addin/taskpane.js's.
+
+  Reports back exactly like addin/auth-callback.html — same
+  __dashDialogResult message, same both-channels-at-once send() pattern —
+  but this page doesn't decide anything about the user's Pro status
+  itself. It only ever says {status: 'completed'} or {status: 'closed'};
+  addin/taskpane.js treats 'completed' as "go poll profiles.is_pro for a
+  bit," never as "the user is Pro now." The actual grant happens
+  server-side, from Paddle's webhook (supabase/functions/paddle-webhook),
+  once Paddle itself confirms the charge — a message from this page alone
+  proves nothing (the client could just send it directly).
+-->
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script>
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.search);
+  var priceId = params.get('price');
+  var supabaseUserId = params.get('uid');
+  var env = params.get('env');
+  var token = params.get('token');
+
+  function send(result) {
+    if (window.opener) {
+      try { window.opener.postMessage({ __dashDialogResult: true, params: result }, location.origin); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
+    }
+    if (window.Office && Office.context && Office.context.ui && Office.context.ui.messageParent) {
+      try { Office.context.ui.messageParent(JSON.stringify(result)); } catch (e) { /* not actually inside an Office dialog */ }
+    }
+  }
+
+  function start() {
+    if (!priceId || !supabaseUserId || !token) {
+      document.body.textContent = 'Missing checkout parameters.';
+      send({ status: 'error', message: 'Missing checkout parameters.' });
+      return;
+    }
+    if (env === 'sandbox') Paddle.Environment.set('sandbox');
+    Paddle.Initialize({
+      token: token,
+      eventCallback: function (event) {
+        if (event.name === 'checkout.completed') {
+          send({ status: 'completed' });
+          setTimeout(function () { window.close(); }, 2500); // let Paddle's own confirmation screen show briefly first
+        } else if (event.name === 'checkout.closed') {
+          send({ status: 'closed' });
+        }
+      },
+    });
+    Paddle.Checkout.open({
+      items: [{ priceId: priceId, quantity: 1 }],
+      customData: { supabase_user_id: supabaseUserId },
+    });
+  }
+
+  if (window.Office && typeof Office.onReady === 'function') Office.onReady(start);
+  else start();
+})();
+</script>
+</body>
+</html>

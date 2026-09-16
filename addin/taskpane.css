@@ -59,6 +59,59 @@ h1 { margin: 0; font-size: 19px; line-height: 1.1; font-weight: 760; letter-spac
 }
 .version-badge:empty { display: none; }
 
+/* ---------- Account bar (signed-in state) ---------- */
+.account-bar {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 16px;
+  border-bottom: 1px solid var(--rule); background: var(--panel);
+}
+.account-row { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.account-email { font-size: 12px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.account-signout { height: 28px; padding: 0 10px; font-size: 12px; flex: none; }
+
+.usage { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+.usage-dots { display: flex; gap: 3px; flex: none; }
+.usage-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--rule);
+  transition: background-color .25s ease, transform .25s ease;
+}
+.usage-dot.filled { background: var(--green); }
+.usage-dot.just-used { animation: usage-dot-pop .4s ease; }
+@keyframes usage-dot-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.7); background-color: var(--green-mid); }
+  100% { transform: scale(1); }
+}
+.usage-label { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usage-label.limit-reached { color: var(--loss); font-weight: 650; }
+
+.account-pro-badge { flex: 1; display: flex; }
+.account-pro-badge .pill {
+  display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px;
+  background: var(--green-soft); color: var(--green-dark); font-size: 10.5px; font-weight: 750;
+  letter-spacing: .03em; text-transform: uppercase;
+}
+
+.account-upgrade {
+  flex: none; font-size: 12px; font-weight: 650; color: var(--green); text-decoration: none;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+}
+.account-upgrade:hover { background: var(--green-soft); }
+
+/* ---------- Sign in / sign up gate ---------- */
+.auth-step { padding: 20px 16px; }
+.auth-step h2 { margin: 1px 0 2px; font-size: 15px; font-weight: 650; }
+.auth-form { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+.auth-toggle { display: block; margin: 14px auto 0; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 14px; color: var(--faint); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+.auth-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink);
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.auth-google:hover { border-color: var(--green-mid); }
+.auth-google svg { width: 17px; height: 17px; flex: none; }
+
 
 /* ---------- Startup dashboard list (view-setup, above step 1) ---------- */
 .startup-list { padding-top: 14px; margin-bottom: 10px; border-bottom: 1px solid var(--rule); padding-bottom: 16px; }
@@ -158,6 +211,23 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
 .cta-row { display: flex; gap: 8px; }
 .cta-row .cta { flex: 1; }
+.cta-upgrade { margin-top: 8px; }
+
+.plan-row { display: flex; gap: 8px; margin-top: 8px; }
+.plan-btn {
+  position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 8px; border: 1.5px solid var(--rule); border-radius: 9px; background: var(--panel);
+  color: var(--ink); cursor: pointer;
+}
+.plan-btn:hover { border-color: var(--green-mid); }
+.plan-name { font-size: 11.5px; color: var(--muted); font-weight: 620; }
+.plan-price { font-size: 17px; font-weight: 700; }
+.plan-price small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.plan-save {
+  position: absolute; top: -8px; right: 8px; padding: 1px 6px; border-radius: 999px;
+  background: var(--green); color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+}
+.plan-cancel { display: block; width: 100%; margin-top: 8px; text-align: center; }
 
 /* ---------- Theme + palette (once per generate) ---------- */
 #view-theme { padding: 4px 16px 16px; }
