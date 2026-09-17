@@ -43,7 +43,16 @@
 
   function send() {
     if (window.opener) {
-      try { window.opener.postMessage({ __dashDialogResult: true, params: params }, location.origin); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
+      // Deliberately '*', not location.origin: this page's own origin
+      // (wherever it's hosted) has no reason to match the opener's — the
+      // Excel task pane happens to share it, but a Google Sheets sidebar
+      // is served from Apps Script's own sandboxed googleusercontent.com
+      // origin instead, and postMessage silently refuses delivery (no
+      // error, just never arrives) when targetOrigin doesn't match the
+      // target window's actual origin. Safe either way: the message only
+      // ever goes to this specific window.opener reference, never anyone
+      // else, regardless of the origin string used here.
+      try { window.opener.postMessage({ __dashDialogResult: true, params: params }, '*'); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
     }
     if (window.Office && Office.context && Office.context.ui && Office.context.ui.messageParent) {
       try { Office.context.ui.messageParent(JSON.stringify(params)); } catch (e) { /* not actually inside an Office dialog */ }

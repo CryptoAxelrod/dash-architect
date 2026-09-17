@@ -8,7 +8,7 @@
      etc. rather than duplicating those rules here — this page and the
      footer's own long-gone plan picker used to share that markup; now this
      is the only place it's used, see addin/taskpane.js#openPaddleCheckoutDialog. -->
-<link rel="stylesheet" href="taskpane.css?v=1.28">
+<link rel="stylesheet" href="taskpane.css?v=1.29">
 <style>
   body { padding: 20px 18px; background: var(--paper); }
   .checkout-title { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
@@ -95,7 +95,12 @@
 
   function send(result) {
     if (window.opener) {
-      try { window.opener.postMessage({ __dashDialogResult: true, params: result }, location.origin); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
+      // '*', not location.origin — see addin/auth-callback.html's send()
+      // for why: this page's own origin has no reason to match the
+      // opener's (a Google Sheets sidebar is served from Apps Script's
+      // own sandboxed origin, not this page's), and a mismatched
+      // targetOrigin makes postMessage silently drop the message.
+      try { window.opener.postMessage({ __dashDialogResult: true, params: result }, '*'); } catch (e) { /* different origin opener — Office dialog case uses messageParent instead */ }
     }
     if (window.Office && Office.context && Office.context.ui && Office.context.ui.messageParent) {
       try { Office.context.ui.messageParent(JSON.stringify(result)); } catch (e) { /* not actually inside an Office dialog */ }

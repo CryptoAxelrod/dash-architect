@@ -233,7 +233,7 @@
         whiteSpace: 'nowrap',
       },
     }, valueStr));
-    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max', count: 'Count' };
     const rowsText = `${w.count.toLocaleString('en-US')} row${w.count === 1 ? '' : 's'}`;
     // A Min/Avg/Max pick from the settings panel looks identical to a plain
     // Sum otherwise — same number formatting, no other visual cue — so a
@@ -267,10 +267,12 @@
   // that same row for it) — it must never swallow a click meant for a
   // filter chip underneath.
   function renderWatermark(w, theme) {
+    // 1.5x theme.type.axis — see render/svg.js's renderWatermark comment;
+    // engine/layout.js's reserved watermark width is sized for this.
     return el('div', {
       style: absRect(w.rect, {
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        font: `italic ${theme.type.axis}px ${theme.font.family}`, color: theme.color.faint,
+        font: `italic ${theme.type.axis * 1.5}px ${theme.font.family}`, color: theme.color.faint,
         pointerEvents: 'none', whiteSpace: 'nowrap', paddingRight: '6px', boxSizing: 'border-box',
       }),
     }, Format.WATERMARK_TEXT);

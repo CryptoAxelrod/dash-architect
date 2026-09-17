@@ -138,13 +138,26 @@
     detectSource: () => gsRun('detectSource'),
     async readRangeForEngine(source) {
       const raw = await gsRun('readRangeRaw', source);
+      if (!raw) throw new Error('The server returned no data for this range — check the Apps Script project\'s Executions log for the actual error.');
       const { headers, dataRows } = window.DashSheetsIo.toEngineInput(raw);
       return { headers, dataRows, totalRows: raw.totalRows, cols: raw.cols, timing: raw.timing };
     },
     listDashboards: () => gsRun('listDashboards'),
+    // A rasterized dashboard's base64 PNG can run to multiple MB —
+    // comfortably past google.script.run's practical per-call size ceiling
+    // (undocumented, but real: this is what made "Place image on sheet" a
+    // dead button rather than an error). Uploaded as many small chunks
+    // instead of one huge argument — see Code.gs's matching functions.
     async placeDashboard(args) {
       const payload = window.DashAddinDashboardIo.buildStoragePayload(args);
-      return gsRun('generateAndPlace', { pngBase64: args.pngBase64, canvasSize: args.canvasSize, payload, shapeName: args.shapeName || undefined });
+      const uploadId = await gsRun('beginPngUpload');
+      const CHUNK_SIZE = 90000;
+      const total = Math.max(1, Math.ceil(args.pngBase64.length / CHUNK_SIZE));
+      for (let i = 0; i < total; i++) {
+        const chunk = args.pngBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        await gsRun('uploadPngChunk', uploadId, i, chunk);
+      }
+      return gsRun('generateAndPlaceFromUpload', uploadId, total, { canvasSize: args.canvasSize, payload, shapeName: args.shapeName || undefined });
     },
   };
 

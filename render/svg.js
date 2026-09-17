@@ -179,8 +179,12 @@
 
   function renderWatermark(widget, theme) {
     const r = widget.rect;
-    return text(r.x + r.w - 6, r.y + r.h / 2 + 4, Format.WATERMARK_TEXT, {
-      fill: theme.color.faint, 'font-size': theme.type.axis, 'font-style': 'italic',
+    // 1.5x theme.type.axis — plain axis size read as basically invisible
+    // in practice; still the smallest text on the dashboard, just no
+    // longer the smallest by a factor of two-plus. engine/layout.js's
+    // reserved watermark width is sized for this specific multiplier.
+    return text(r.x + r.w - 6, r.y + r.h / 2 + 5, Format.WATERMARK_TEXT, {
+      fill: theme.color.faint, 'font-size': theme.type.axis * 1.5, 'font-style': 'italic',
       'text-anchor': 'end', 'font-family': theme.font.family,
     });
   }
@@ -239,7 +243,7 @@
       'font-size': valueSize, 'font-weight': 750, 'font-family': theme.font.family,
     });
     const captionSize = theme.type.kpiLabel - 1.5;
-    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+    const AGGREGATION_LABELS = { sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max', count: 'Count' };
     const rowsText = `${widget.count.toLocaleString('en-US')} row${widget.count === 1 ? '' : 's'}`;
     const captionText = widget.approximate
       ? 'Unweighted average — no verified weight base'

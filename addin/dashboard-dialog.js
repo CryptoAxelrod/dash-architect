@@ -412,7 +412,7 @@
   // means "no override, use whatever engine/roles.js classified this
   // measure as" (sum, or a verified weighted ratio for a resolved
   // percentage) rather than forcing a choice onto every row.
-  const AGGREGATION_OPTIONS = [['', 'Default'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Min'], ['max', 'Max']];
+  const AGGREGATION_OPTIONS = [['', 'Default'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Min'], ['max', 'Max'], ['count', 'Count']];
   function buildAggregationSelect(value, onChange) {
     const select = document.createElement('select');
     for (const [v, label] of AGGREGATION_OPTIONS) {
@@ -553,7 +553,14 @@
     if (!currentAnalysis) return;
     const Layout = Engine.Layout;
     const sel = Layout.selectColumns(currentAnalysis.columns);
-    const allCharts = Layout.planCharts(sel);
+    // Mirrors engine/layout.js#buildSkeleton's own fallback exactly (see
+    // there for the full reasoning): a table with zero measure-role columns
+    // still gets "count by X" chart candidates here instead of crashing on
+    // a null primaryMeasure — this settings-panel code plans charts on its
+    // own, independent of buildSkeleton's copy of the same logic.
+    const hasAnyMeasure = sel.measures.length > 0;
+    const chartSel = hasAnyMeasure ? sel : Object.assign({}, sel, { primaryMeasure: Layout.ROW_COUNT_MEASURE });
+    const allCharts = Layout.planCharts(chartSel);
     if (!allCharts.length) {
       const p = document.createElement('p');
       p.className = 'mapping-hint';
@@ -566,8 +573,12 @@
 
     for (const plan of allCharts) {
       const effective = Layout.applyChartOverride(plan, sel, overridesByChart[plan.id]);
+      // Forced, not left to a stale override — same reasoning as
+      // buildSkeleton's identical line: sum/avg/min/max mean nothing with
+      // no real measure behind them.
+      if (!hasAnyMeasure) { effective.measure = Layout.ROW_COUNT_MEASURE; effective.overrideAggregation = 'count'; }
       const enabled = enabledSet ? enabledSet.has(plan.id) : true;
-      const measureName = (effective.measure || sel.primaryMeasure).name;
+      const measureName = (effective.measure || chartSel.primaryMeasure).name;
 
       const row = document.createElement('div');
       row.className = 'chart-config-row';
@@ -614,18 +625,22 @@
           controls.appendChild(dimSelect);
         }
 
-        const measureSelect = document.createElement('select');
-        for (const m of sel.measures) {
-          const opt = document.createElement('option');
-          opt.value = m.name;
-          opt.textContent = m.name;
-          measureSelect.appendChild(opt);
-        }
-        measureSelect.value = measureName;
-        measureSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { measureColumn: measureSelect.value }));
-        controls.appendChild(measureSelect);
+        // No real measure to switch to or override the aggregation of —
+        // every chart here is already forced to "count" above.
+        if (hasAnyMeasure) {
+          const measureSelect = document.createElement('select');
+          for (const m of sel.measures) {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.textContent = m.name;
+            measureSelect.appendChild(opt);
+          }
+          measureSelect.value = measureName;
+          measureSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { measureColumn: measureSelect.value }));
+          controls.appendChild(measureSelect);
 
-        controls.appendChild(buildAggregationSelect(effective.overrideAggregation, (agg) => onChartOverrideChange(plan.id, { aggregation: agg })));
+          controls.appendChild(buildAggregationSelect(effective.overrideAggregation, (agg) => onChartOverrideChange(plan.id, { aggregation: agg })));
+        }
 
         row.appendChild(controls);
       }

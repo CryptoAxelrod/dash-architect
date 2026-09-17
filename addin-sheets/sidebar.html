@@ -100,7 +100,7 @@
       <span class="step-num"><span class="n">1</span><svg class="tick" viewBox="0 0 12 12"><path d="M2.5 6.3 5 8.6 9.5 3.6"/></svg></span>
       <div class="step-body">
         <h2>Choose your data</h2>
-        <p class="step-desc">Select the cells on the sheet, then click "Use this selection" below.</p>
+        <p class="step-desc">Highlight the cells in your sheet, then capture the range.</p>
 
         <div class="refedit" id="refedit" data-state="empty">
           <svg class="ref-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -112,8 +112,10 @@
             <span class="ref-cells" id="ref-cells" hidden></span>
             <span class="ref-sheet" id="ref-sheet" hidden></span>
           </div>
-          <button type="button" class="ref-btn" id="ref-btn">Use this selection</button>
+          <button type="button" class="ref-btn" id="ref-btn">Select range</button>
         </div>
+
+        <p class="ref-hint" id="ref-hint" hidden>Select cells in the sheet — the address above follows along — then press Done.</p>
 
         <div class="ref-meta" id="ref-meta" hidden>
           <p class="ref-size" id="ref-size"></p>
@@ -226,6 +228,11 @@
 <script src="https://CryptoAxelrod.github.io/dash-architect/engine/layout.js"></script>
 <script src="https://CryptoAxelrod.github.io/dash-architect/engine/reconcile.js"></script>
 <script src="https://CryptoAxelrod.github.io/dash-architect/engine/index.js"></script>
+<!-- render/format.js must load before render/svg.js — svg.js's own module
+     body reads Format.esc at its top level, not inside a function, so a
+     missing/late format.js makes the whole svg.js script throw during
+     evaluation and window.DashRenderSvg never gets defined at all. -->
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/format.js"></script>
 <script src="https://CryptoAxelrod.github.io/dash-architect/render/palettes.js"></script>
 <script src="https://CryptoAxelrod.github.io/dash-architect/render/themes.js"></script>
 <script src="https://CryptoAxelrod.github.io/dash-architect/render/svg.js"></script>
@@ -257,9 +264,11 @@
   // descriptor to Code.gs, which opens dashboard.html as its own,
   // self-sufficient window (see Code.gs's header comment).
   const host = {
+    readSelectionInfo: () => gsRun('getSelectionInfo'),
     detectSource: () => gsRun('detectSource'),
     async readRangeForEngine(source) {
       const raw = await gsRun('readRangeRaw', source);
+      if (!raw) throw new Error('The server returned no data for this range — check the Apps Script project\'s Executions log for the actual error.');
       const { headers, dataRows } = window.DashSheetsIo.toEngineInput(raw);
       return { headers, dataRows, totalRows: raw.totalRows, cols: raw.cols, timing: raw.timing };
     },
@@ -287,6 +296,9 @@
     pickingFor: 'generate', // 'generate' | 'change-range' — 'change-range' isn't reachable from this sidebar (see openDashboardDialog's own inline flow), reserved for symmetry with the shared idle-footer logic
     accountStatus: null,
     hasOpenedDashboard: false, // drives the simplified build-open footer — see its own doc comment
+    picking: false,
+    pickingTimer: null, // setInterval id — polling stand-in for Office.js's DocumentSelectionChanged push (see host.readSelectionInfo's doc comment in Code.gs)
+    sourceBeforePick: null,
   };
   const FREE_DASHBOARD_LIMIT = 3;
   const PADDLE_ENVIRONMENT = 'sandbox';
@@ -316,7 +328,7 @@
       profileSignout: $('profile-signout'),
       viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'),
       refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
-      meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
+      hint: $('ref-hint'), meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
       summary: $('summary'), build: $('build'), buildIdle: $('build-idle'), buildOpen: $('build-open'),
       generate: $('generate'), ctaLabel: $('cta-label'), ctaFill: $('cta-fill'), buildError: $('build-error'), buildTiming: $('build-timing'),
       cancelChangeRange: $('cancel-change-range'),
@@ -328,7 +340,9 @@
       themeTitleInput: $('theme-title-input'),
     });
 
-    els.refBtn.addEventListener('click', onUseSelectionClick);
+    els.refBtn.addEventListener('click', (e) => { e.stopPropagation(); state.picking ? finishPicking() : startPicking(); });
+    els.refedit.addEventListener('click', () => { if (!state.picking && !state.busy) startPicking(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.picking) cancelPicking(); });
     els.generate.addEventListener('click', generate);
     els.themeGenerate.addEventListener('click', finalizeGenerate);
     els.themeCancel.addEventListener('click', () => showView('setup'));
@@ -521,6 +535,7 @@
     if (!session) return;
     state.busy = true;
     els.buildError.hidden = true;
+    let popupError = null;
     try {
       const url = new URL('https://CryptoAxelrod.github.io/dash-architect/addin/paddle-checkout.html');
       url.searchParams.set('uid', session.user.id);
@@ -528,15 +543,25 @@
       url.searchParams.set('token', PADDLE_CLIENT_TOKEN);
       url.searchParams.set('priceMonthly', PADDLE_PRICE_MONTHLY);
       url.searchParams.set('priceAnnual', PADDLE_PRICE_ANNUAL);
-      const result = await openResultPopup(url.href);
-      if (result && result.status === 'completed') {
-        await waitForProSync();
-        renderProfileSections();
-      }
+      await openResultPopup(url.href);
     } catch (err) {
-      els.buildError.textContent = (err && err.message) || 'Checkout did not complete.';
-      els.buildError.hidden = false;
+      // The popup closing — whether or not its "completed" message
+      // actually arrived; window.opener.postMessage across the sidebar's
+      // sandboxed origin has already proven unreliable once — isn't proof
+      // payment failed, only that the window is gone. Pro status is only
+      // ever granted server-side (Paddle's webhook), so that's checked
+      // directly below regardless of how the popup ended, instead of
+      // trusting this rejection as the final word.
+      popupError = err;
+    }
+    try {
+      await waitForProSync();
+      renderProfileSections();
     } finally {
+      if (popupError && !(state.accountStatus && state.accountStatus.isPro)) {
+        els.buildError.textContent = (popupError && popupError.message) || 'Checkout did not complete.';
+        els.buildError.hidden = false;
+      }
       state.busy = false;
     }
   }
@@ -614,33 +639,92 @@
     }
   }
 
-  /* ---------- range selection: no live "picking" push exists in Apps
-     Script (unlike Office.js's DocumentSelectionChanged) — select cells on
-     the sheet, then click the button, which re-reads whatever is selected
-     right now. ---------- */
-  async function onUseSelectionClick() {
-    if (state.busy) return;
+  /* ---------- range selection: Apps Script has no live selection-changed
+     push the way Office.js's DocumentSelectionChanged gives Excel's task
+     pane — "picking" mode here fakes the same feel by polling
+     host.readSelectionInfo() every POLL_MS while the box is in that state,
+     so the address visibly follows the user's selection on the sheet right
+     up to the moment they press Done, same as Excel. ---------- */
+  const POLL_MS = 600;
+
+  function startPicking() {
+    state.picking = true;
+    state.sourceBeforePick = state.source;
+    els.refedit.dataset.state = 'picking';
+    els.refBtn.textContent = 'Done';
+    els.hint.hidden = false;
+    els.meta.hidden = true;
+    pollSelection();
+    state.pickingTimer = setInterval(pollSelection, POLL_MS);
+  }
+
+  async function pollSelection() {
+    if (!state.picking) return;
+    try {
+      const info = await host.readSelectionInfo();
+      if (state.picking && info) showLiveAddress(info);
+    } catch (e) { /* transient — the next poll tries again */ }
+  }
+
+  function stopPicking() {
+    state.picking = false;
+    if (state.pickingTimer) { clearInterval(state.pickingTimer); state.pickingTimer = null; }
+    els.hint.hidden = true;
+  }
+
+  // Unlike Excel, where a task pane can find no selection at all, Google
+  // Sheets always has an active cell — pressing Done without ever having
+  // moved off a trivial default selection doesn't fail, it just quietly
+  // captures that one cell. That "worked, but obviously wrong" result (a
+  // 1-row/1-column "range") is treated as suspect rather than accepted, so
+  // the reason nothing useful happened is visible instead of a dead end.
+  async function finishPicking() {
+    stopPicking();
     els.buildError.hidden = true;
     try {
       const source = await host.detectSource();
-      if (!source) { els.buildError.textContent = 'Select some cells on the sheet first.'; els.buildError.hidden = false; return; }
+      if (!source) { restoreRange(state.sourceBeforePick); return; }
+      if (source.rows <= 1 || source.cols <= 1) {
+        els.buildError.textContent = `That's only ${source.rows} row(s) and ${source.cols} column(s) — select the full table on the sheet (including its header row), then press Select range again.`;
+        els.buildError.hidden = false;
+        restoreRange(state.sourceBeforePick);
+        return;
+      }
       state.source = source;
       showAddress(source);
       renderProgress();
     } catch (err) {
       els.buildError.textContent = `Could not read the selection: ${(err && err.message) || String(err)}`;
       els.buildError.hidden = false;
+      restoreRange(state.sourceBeforePick);
     }
+  }
+
+  function cancelPicking() {
+    stopPicking();
+    restoreRange(state.sourceBeforePick);
+  }
+
+  function restoreRange(source) {
+    if (source) { state.source = source; showAddress(source); }
+    else restoreEmptyRange();
+  }
+
+  // Live feedback while picking — address/size only, no header-row read
+  // (that needs its own round trip, done once in finishPicking's
+  // detectSource, not on every ~600ms poll).
+  function showLiveAddress(info) {
+    els.placeholder.hidden = true;
+    els.cells.hidden = false;
+    els.cells.textContent = info.a1;
+    els.sheet.hidden = false;
+    els.sheet.textContent = info.sheetName;
   }
 
   function showAddress(source) {
     els.refedit.dataset.state = 'set';
     els.refBtn.textContent = 'Change';
-    els.placeholder.hidden = true;
-    els.cells.hidden = false;
-    els.cells.textContent = source.a1;
-    els.sheet.hidden = false;
-    els.sheet.textContent = source.sheetName;
+    showLiveAddress(source);
     els.size.textContent = `${plural(Math.max(source.rows - 1, 0), 'row', 'rows')}, ${plural(source.cols, 'column', 'columns')}`;
     els.headers.innerHTML = '';
     source.headers.forEach((h, i) => {
@@ -656,7 +740,7 @@
   function restoreEmptyRange() {
     state.source = null;
     els.refedit.dataset.state = 'empty';
-    els.refBtn.textContent = 'Use this selection';
+    els.refBtn.textContent = 'Select range';
     els.placeholder.hidden = false;
     els.cells.hidden = true;
     els.sheet.hidden = true;
@@ -796,6 +880,13 @@
       document.body.classList.remove('busy');
       els.ctaFill.style.transitionDuration = '0ms';
       els.ctaFill.style.width = '0';
+      // setCta() overwrote this with "Reading your data…"/"Classifying
+      // columns…" above — on success this button is already hidden (the
+      // theme screen replaced it), but it's the SAME button element
+      // shown again next time the setup view's footer is idle, so leaving
+      // it unset here left the stale progress label sitting on it until
+      // this line ran once more.
+      els.ctaLabel.textContent = 'Generate dashboard';
       syncIdleFooter();
     }
   }
@@ -857,6 +948,7 @@
   }
 
   function startOver() {
+    if (state.picking) stopPicking();
     state.source = null;
     state.analysis = null;
     state.roleOverrides = null;
@@ -868,21 +960,31 @@
   }
 
   /* ---------- dashboard list ---------- */
+  // Markup matches addin/taskpane.css's own `.dash-item-actions`/
+  // `.dash-item-delete`/`.dash-item-confirm` rules exactly (that stylesheet
+  // is loaded as-is, unmodified — see the file's <link> tags) — buttons
+  // must live inside a `.dash-item-actions` flex row, not directly in the
+  // <li>, or they wrap character-by-character with the title text instead
+  // of wrapping as a group.
   function renderDashListItem(d) {
     const li = document.createElement('li');
     li.className = 'dash-item';
-    const title = document.createElement('span');
+
+    const title = document.createElement('p');
     title.className = 'dash-item-title';
     title.textContent = d.payload.title || d.shapeName;
     li.appendChild(title);
 
+    const actions = document.createElement('div');
+    actions.className = 'dash-item-actions';
+
     const openBtn = document.createElement('button');
-    openBtn.type = 'button'; openBtn.className = 'btn-quiet'; openBtn.textContent = 'Open';
+    openBtn.type = 'button'; openBtn.className = 'primary'; openBtn.textContent = 'Open';
     openBtn.addEventListener('click', () => openSavedDashboard(d));
-    li.appendChild(openBtn);
+    actions.appendChild(openBtn);
 
     const renameBtn = document.createElement('button');
-    renameBtn.type = 'button'; renameBtn.className = 'btn-quiet'; renameBtn.textContent = 'Rename';
+    renameBtn.type = 'button'; renameBtn.textContent = 'Rename';
     renameBtn.addEventListener('click', async () => {
       const next = prompt('Rename dashboard', d.payload.title || '');
       if (next == null || !next.trim()) return;
@@ -890,41 +992,85 @@
         let snapshot;
         if (d.payload.layoutSpec) snapshot = { layoutSpec: d.payload.layoutSpec };
         await host.renameDashboard(d.shapeName, next.trim(), snapshot);
-        await Promise.all([refreshStartupList(), showList()]);
+        await Promise.all([refreshStartupList(), refreshFullListInPlace()]);
       } catch (err) {
         els.buildError.textContent = `Could not rename: ${(err && err.message) || err}`;
         els.buildError.hidden = false;
       }
     });
-    li.appendChild(renameBtn);
+    actions.appendChild(renameBtn);
+
+    const confirmRow = document.createElement('div');
+    confirmRow.className = 'dash-item-confirm';
+    confirmRow.hidden = true;
+    const confirmText = document.createElement('span');
+    confirmText.textContent = 'Delete this dashboard?';
+    const confirmYes = document.createElement('button');
+    confirmYes.type = 'button'; confirmYes.className = 'danger'; confirmYes.textContent = 'Delete';
+    const confirmNo = document.createElement('button');
+    confirmNo.type = 'button'; confirmNo.textContent = 'Keep it';
+    confirmRow.append(confirmText, confirmYes, confirmNo);
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button'; deleteBtn.className = 'btn-quiet danger'; deleteBtn.textContent = 'Delete';
-    deleteBtn.addEventListener('click', async () => {
-      if (!confirm(`Delete "${d.payload.title || d.shapeName}"? This removes its picture from the sheet too.`)) return;
+    deleteBtn.type = 'button'; deleteBtn.className = 'dash-item-delete'; deleteBtn.setAttribute('aria-label', 'Delete');
+    deleteBtn.textContent = '×';
+    deleteBtn.addEventListener('click', () => { confirmRow.hidden = false; });
+    confirmNo.addEventListener('click', () => { confirmRow.hidden = true; });
+    // Guarded against re-entry and given an immediate "Deleting…" label —
+    // Code.gs#deleteDashboard is a real network round trip (delete the
+    // image, delete the settings row), and with no feedback at all a click
+    // that's simply still in flight reads as "didn't work," inviting more
+    // clicks rather than waiting for the one already running.
+    confirmYes.addEventListener('click', async () => {
+      if (confirmYes.disabled) return;
+      confirmYes.disabled = true;
+      confirmNo.disabled = true;
+      const original = confirmYes.textContent;
+      confirmYes.textContent = 'Deleting…';
       try {
         await host.deleteDashboard(d.shapeName);
-        await Promise.all([refreshStartupList(), showList()]);
+        await Promise.all([refreshStartupList(), refreshFullListInPlace()]);
       } catch (err) {
         els.buildError.textContent = `Could not delete: ${(err && err.message) || err}`;
         els.buildError.hidden = false;
+        confirmRow.hidden = true;
+        confirmYes.disabled = false;
+        confirmNo.disabled = false;
+        confirmYes.textContent = original;
       }
     });
-    li.appendChild(deleteBtn);
+    actions.appendChild(deleteBtn);
 
+    li.append(actions, confirmRow);
     return li;
   }
 
-  async function showList() {
-    showView('list');
+  // Rebuilds #dash-list's contents in place — never switches views. Used
+  // by rename/delete's own refresh (they must not force-navigate to the
+  // full list screen just because that screen also happens to show the
+  // same dashboards — see showList's own doc comment for the bug this
+  // split fixes) and by showList itself, which does the navigation.
+  async function refreshFullListInPlace() {
     let dashboards = [];
     try { dashboards = await host.listDashboards(); } catch (err) {
       els.buildError.textContent = `Could not load your dashboards: ${(err && err.message) || err}`;
       els.buildError.hidden = false;
+      return;
     }
     els.listEmpty.hidden = !!dashboards.length;
     els.dashList.innerHTML = '';
     for (const d of dashboards) els.dashList.appendChild(renderDashListItem(d));
+  }
+
+  // Navigates to the full "Dashboards in this spreadsheet" screen — only
+  // ever called from the header's list button/"View dashboards", never
+  // from rename/delete's own refresh (that used to call this directly,
+  // which is exactly what made deleting a dashboard from the startup
+  // screen's list unexpectedly jump to this separate screen instead of
+  // just removing it in place).
+  async function showList() {
+    showView('list');
+    await refreshFullListInPlace();
   }
 
   async function openSavedDashboard(d) {

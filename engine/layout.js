@@ -118,8 +118,18 @@
   const CHART_TYPE_OPTIONS = { line: ['line'], bar: ['bar', 'horizontalBar', 'donut'] };
 
   // Shared by chart overrides and KPI overrides — the settings panel's
-  // Sum/Avg/Min/Max pick, see engine/aggregate.js#aggregateMeasure.
-  const VALID_AGGREGATIONS = ['sum', 'avg', 'min', 'max'];
+  // Sum/Avg/Min/Max/Count pick, see engine/aggregate.js#aggregateMeasure.
+  const VALID_AGGREGATIONS = ['sum', 'avg', 'min', 'max', 'count'];
+
+  // Stands in for a real measure column when a table has zero measure-role
+  // columns at all (every column is dimension/date/identifier/text) — see
+  // buildSkeleton's `hasAnyMeasure` handling below. Never actually read as
+  // a column: engine/aggregate.js#aggregateMeasure returns rowIndices.length
+  // for a 'count' override before ever touching its `column` argument, and
+  // every widget built from this always carries aggregationOverride:'count'
+  // explicitly for that exact reason — there is no native aggregation to
+  // fall back to for a column that was never real.
+  const ROW_COUNT_MEASURE = { name: 'Row count' };
 
   // Applies a settings-panel chart override (type / dimensionColumn /
   // measureColumn / aggregation) on top of one auto-planned chart —
@@ -168,23 +178,30 @@
     // chart in the settings panel, which is a deliberate, temporary display
     // choice, not a data problem. `hasAnyMeasure` is measured before any of
     // cfg's filtering, so it only tracks whether classification itself
-    // produced zero measure-role columns — see the `!hasAnyMeasure` branch
-    // below and CLAUDE.md-adjacent SPEC.md notes on this. Gating planCharts
-    // on it also closes a latent crash: without it, a dimension-only table
-    // (chart-eligible dimensions but no measures) would still get bar-chart
-    // plans from planCharts below with no measure to fall back to, and
-    // chartWidgetSkeleton's `plan.measure || primaryMeasure` would try to
-    // read `.name` off a null primaryMeasure.
+    // produced zero measure-role columns at all — a table of pure text/date/
+    // identifier columns (e.g. "Product Name, Category, Status, Region"),
+    // which is a real, unremarkable dataset shape, not an edge case.
+    // Falls back to ROW_COUNT_MEASURE + a forced 'count' aggregation rather
+    // than showing nothing: a plain "how many rows" KPI (and a "count by
+    // X" chart for any chart-eligible dimension) is correct and useful
+    // for such a table, needs no numeric column at all, and is exactly
+    // what a person would do by hand — see engine/aggregate.js#aggregateMeasure.
     const hasAnyMeasure = sel.measures.length > 0;
-    let chartPlan = cfg.showCharts && hasAnyMeasure ? planCharts(sel) : [];
+    const chartSel = hasAnyMeasure ? sel : Object.assign({}, sel, { primaryMeasure: ROW_COUNT_MEASURE });
+    let chartPlan = cfg.showCharts ? planCharts(chartSel) : [];
     if (cfg.enabledCharts) chartPlan = chartPlan.filter((p) => cfg.enabledCharts.includes(p.id));
     // Cap AFTER enabledCharts, not inside planCharts — see planCharts' own
     // comment. Default (no enabledCharts set) keeps today's behavior: the
     // first LAYOUT.chart.maxCount eligible, in column order.
     chartPlan = chartPlan.slice(0, LAYOUT.chart.maxCount);
     if (cfg.chartOverrides) chartPlan = chartPlan.map((p) => applyChartOverride(p, sel, cfg.chartOverrides[p.id]));
+    // Forced, not just defaulted: sum/avg/min/max are meaningless with no
+    // real values behind them, so a stale chartOverrides.aggregation from
+    // before this table lost its only measure (or never had one) must not
+    // win here the way applyChartOverride would normally let it.
+    if (!hasAnyMeasure) chartPlan = chartPlan.map((p) => Object.assign({}, p, { measure: ROW_COUNT_MEASURE, overrideAggregation: 'count' }));
     const kpiCandidates = cfg.enabledKpis ? sel.measures.filter((m) => cfg.enabledKpis.includes(m.name)) : sel.measures;
-    const kpiMeasures = kpiCandidates.slice(0, LAYOUT.kpi.maxCards);
+    const kpiMeasures = hasAnyMeasure ? kpiCandidates.slice(0, LAYOUT.kpi.maxCards) : [ROW_COUNT_MEASURE];
     // Same enabled/all pattern as kpiCandidates above — settings panel's new
     // "Filters" section (addin/dashboard-dialog.js) — filtered BEFORE the
     // maxVisible slice, so a deliberately-picked set of 4 is exactly what
@@ -251,7 +268,10 @@
           type: 'kpi',
           variant: 'hero',
           column: hero.name,
-          aggregationOverride: kpiAggregationOverride(cfg, hero.name),
+          // Forced 'count' for the same reason as chartPlan above — there's
+          // no real measure a cfg.kpiAggregations entry could have been
+          // saved against, and sum/avg/min/max mean nothing here anyway.
+          aggregationOverride: hasAnyMeasure ? kpiAggregationOverride(cfg, hero.name) : 'count',
           rect: { x: x0, y, w: kpiW, h: LAYOUT.kpi.heroHeight },
         });
         if (secondary.length) {
@@ -271,23 +291,18 @@
       }
 
       if (hasChart1) {
-        widgets.push(chartWidgetSkeleton(chartPlan[0], sel.primaryMeasure, chartPlan[0].id, { x: chartX, y, w: chartW, h: LAYOUT.chart.height }));
+        widgets.push(chartWidgetSkeleton(chartPlan[0], chartSel.primaryMeasure, chartPlan[0].id, { x: chartX, y, w: chartW, h: LAYOUT.chart.height }));
       }
 
       y += rowH + LAYOUT.gap;
-    } else if (!hasAnyMeasure) {
-      // Classification found no measure-role column anywhere in the source
-      // — not "the user hid every KPI/chart" (that's the branch above,
-      // simply skipped when both are empty by choice) but "there is
-      // nothing to show a KPI or chart for at all." addin/dashboard-dialog.js
-      // renders this with a way back to the mapping screen — see CLAUDE.md §7:
-      // a column landing here is almost always one auto-classification got
-      // wrong (e.g. a small table's identifier heuristic misfiring, or a
-      // user override that went too far), fixable in seconds without
-      // regenerating anything.
-      widgets.push({ id: 'empty-state', type: 'emptyState', rect: { x: x0, y, w: W, h: LAYOUT.emptyState.height } });
-      y += LAYOUT.emptyState.height + LAYOUT.gap;
     }
+    // No `else if (!hasAnyMeasure)` branch anymore — kpiMeasures always has
+    // at least ROW_COUNT_MEASURE when there's no real measure, so hasKpis
+    // is always true and the branch above always runs instead. The
+    // 'emptyState' widget type, its renderers (render/dom.js, render/svg.js)
+    // and the mapping-reopen plumbing they trigger (onOpenMapping) are left
+    // in place — nothing currently constructs one, but nothing about this
+    // change makes them wrong, only unreachable from here.
 
     const restCharts = chartPlan.slice(1);
     if (restCharts.length) {
@@ -303,7 +318,7 @@
           w: cellW,
           h: LAYOUT.chart.height,
         };
-        widgets.push(chartWidgetSkeleton(plan, sel.primaryMeasure, plan.id, rect));
+        widgets.push(chartWidgetSkeleton(plan, chartSel.primaryMeasure, plan.id, rect));
       });
       y += rows * LAYOUT.chart.height + (rows - 1) * LAYOUT.chart.gridGap + LAYOUT.gap;
     }
@@ -380,10 +395,16 @@
     }
 
     if (widget.type === 'kpi') {
+      // `col` is undefined for a widget built from ROW_COUNT_MEASURE (see
+      // buildSkeleton) — it was never a real column, so it's not in
+      // columnsByName at all. widget.aggregationOverride is always exactly
+      // 'count' in that case (never left to default), which is what keeps
+      // aggregateMeasure from ever touching `col`, so every fallback below
+      // just needs to not dereference it either.
       const col = columnsByName.get(widget.column);
       const agg = Aggregate.aggregateMeasure(col, rowIndices, columnsByName, widget.aggregationOverride);
       return Object.assign({}, widget, {
-        label: col.name,
+        label: col ? col.name : widget.column,
         value: agg.value,
         approximate: agg.approximate,
         // The EFFECTIVE aggregation actually used (override, if any) — not
@@ -391,10 +412,10 @@
         // renderer whether to actually SHOW that as a label — render/dom.js
         // #renderKpi does, whenever it's true, so Min/Avg/Max don't look
         // indistinguishable from an unlabeled Sum.
-        aggregation: widget.aggregationOverride || col.decision.aggregation,
+        aggregation: widget.aggregationOverride || (col && col.decision.aggregation),
         aggregationOverridden: !!widget.aggregationOverride,
-        cellFormat: col.profile.cellFormat,
-        valueScale: col.decision.valueScale || null,
+        cellFormat: col ? col.profile.cellFormat : null,
+        valueScale: (col && col.decision.valueScale) || null,
         count: rowIndices.length,
       });
     }
@@ -403,7 +424,7 @@
       const timeCol = columnsByName.get(widget.timeColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
       const points = Aggregate.bucketByTime(timeCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
-      return Object.assign({}, widget, { points, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
+      return Object.assign({}, widget, { points, cellFormat: measureCol ? measureCol.profile.cellFormat : null, aggregation: widget.aggregationOverride || (measureCol && measureCol.decision.aggregation), aggregationOverridden: !!widget.aggregationOverride, valueScale: (measureCol && measureCol.decision.valueScale) || null });
     }
 
     // 'bar' and 'horizontalBar' are the same {category, value} data, just
@@ -413,7 +434,7 @@
       const dimCol = columnsByName.get(widget.dimensionColumn);
       const measureCol = columnsByName.get(widget.measureColumn);
       const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
-      return Object.assign({}, widget, { bars, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
+      return Object.assign({}, widget, { bars, cellFormat: measureCol ? measureCol.profile.cellFormat : null, aggregation: widget.aggregationOverride || (measureCol && measureCol.decision.aggregation), aggregationOverridden: !!widget.aggregationOverride, valueScale: (measureCol && measureCol.decision.valueScale) || null });
     }
 
     if (widget.type === 'donut') {
@@ -421,7 +442,7 @@
       const measureCol = columnsByName.get(widget.measureColumn);
       const bars = Aggregate.groupByDimension(dimCol, measureCol, rowIndices, columnsByName, widget.aggregationOverride);
       const slices = bars.map((b) => ({ label: b.category, value: b.value }));
-      return Object.assign({}, widget, { slices, cellFormat: measureCol.profile.cellFormat, aggregation: widget.aggregationOverride || measureCol.decision.aggregation, aggregationOverridden: !!widget.aggregationOverride, valueScale: measureCol.decision.valueScale || null });
+      return Object.assign({}, widget, { slices, cellFormat: measureCol ? measureCol.profile.cellFormat : null, aggregation: widget.aggregationOverride || (measureCol && measureCol.decision.aggregation), aggregationOverridden: !!widget.aggregationOverride, valueScale: (measureCol && measureCol.decision.valueScale) || null });
     }
 
     if (widget.type === 'table') {
@@ -520,5 +541,5 @@
     return { canvas: layoutSpec.canvas, widgets };
   }
 
-  return { LAYOUT, selectColumns, planCharts, CHART_TYPE_OPTIONS, applyChartOverride, defaultBarType, buildLayoutSpec, recompute, buildStorageSnapshot };
+  return { LAYOUT, selectColumns, planCharts, CHART_TYPE_OPTIONS, VALID_AGGREGATIONS, ROW_COUNT_MEASURE, applyChartOverride, defaultBarType, buildLayoutSpec, recompute, buildStorageSnapshot };
 });

@@ -92,6 +92,21 @@ function openDashboardDialog(payload) {
 
 /* ---------- range selection ---------- */
 
+/**
+ * Cheap, address-only read — polled every ~600ms by sidebar.html while the
+ * user is actively picking (see its startPicking/pollSelection), to fake
+ * the live address feedback Office.js's DocumentSelectionChanged event
+ * gives Excel's task pane for free. Apps Script has no push equivalent —
+ * a server-side onSelectionChange simple trigger exists, but it cannot
+ * proactively notify an already-open sidebar, only a client pull can.
+ * @returns {{address:string, sheetName:string, a1:string, rows:number, cols:number}|null}
+ */
+function getSelectionInfo() {
+  var range = SpreadsheetApp.getActiveRange();
+  if (!range) return null;
+  return describeRange_(range);
+}
+
 function describeRange_(range) {
   var sheet = range.getSheet();
   return {
@@ -142,7 +157,20 @@ function readRangeRaw(source) {
   var sheet = SpreadsheetApp.getActive().getSheetByName(source.sheetName);
   if (!sheet) throw new Error('Sheet "' + source.sheetName + '" no longer exists — it may have been deleted or renamed.');
   var range = sheet.getRange(source.a1);
-  var values = range.getValues();
+  // Date-formatted cells come back from getValues() as real JS Date
+  // objects — google.script.run's client<->server bridge only reliably
+  // marshals JSON-safe values (Number/String/Boolean/null/plain
+  // Array/Object), not Date, so those are converted to a plain
+  // 'yyyy-MM-dd' string here, server-side, before this ever crosses the
+  // bridge. addin-sheets/sheets-format-bridge.js#cellToCanonicalText
+  // already passes a plain string straight through, so this needs no
+  // matching change on the client side.
+  var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  var values = range.getValues().map(function (row) {
+    return row.map(function (cell) {
+      return cell instanceof Date ? Utilities.formatDate(cell, tz, 'yyyy-MM-dd') : cell;
+    });
+  });
   var tValues = Date.now();
 
   var sampleRows = Math.min(FORMAT_SAMPLE_ROWS, range.getNumRows());
@@ -302,6 +330,40 @@ function generateAndPlace(args) {
   var verify = loadDashboardSettings(shapeName);
   if (!verify) throw new Error('Settings for "' + shapeName + '" did not persist — the picture is on the sheet, but nothing was saved to reopen it from the list.');
   return { shapeName: shapeName };
+}
+
+/* ---------- chunked PNG upload: google.script.run's own bridge — not
+   just the value types it can carry (see readRangeRaw's Date note above)
+   — also has a practical size ceiling per call. A rasterized dashboard
+   PNG as base64 can run into the multiple-MB range, comfortably past it,
+   which showed up as "Place image on sheet" doing nothing: the call
+   itself never completed, success or failure. dashboard.html's
+   host.placeDashboard sends the base64 string as many small chunks
+   instead of one huge argument — CacheService.getScriptCache() (100KB
+   per value) buffers them here until generateAndPlaceFromUpload
+   reassembles and hands off to generateAndPlace above, unchanged. ---------- */
+var PNG_UPLOAD_TTL_SEC = 300;
+
+function beginPngUpload() {
+  return Utilities.getUuid();
+}
+
+function uploadPngChunk(uploadId, index, chunk) {
+  CacheService.getScriptCache().put('pngUpload_' + uploadId + '_' + index, chunk, PNG_UPLOAD_TTL_SEC);
+}
+
+/** @param {{canvasSize:object, payload:object, shapeName?:string}} args same as generateAndPlace, minus pngBase64 */
+function generateAndPlaceFromUpload(uploadId, totalChunks, args) {
+  var cache = CacheService.getScriptCache();
+  var parts = [];
+  for (var i = 0; i < totalChunks; i++) {
+    var key = 'pngUpload_' + uploadId + '_' + i;
+    var part = cache.get(key);
+    if (part == null) throw new Error('Upload incomplete (chunk ' + (i + 1) + ' of ' + totalChunks + ' missing or expired) — try Place image on sheet again.');
+    parts.push(part);
+    cache.remove(key);
+  }
+  return generateAndPlace({ pngBase64: parts.join(''), canvasSize: args.canvasSize, payload: args.payload, shapeName: args.shapeName });
 }
 
 /** No picture yet — see addin/dashboard-io.js#saveGeneratedDraft's doc comment for why Generate and Place stay separate actions. */

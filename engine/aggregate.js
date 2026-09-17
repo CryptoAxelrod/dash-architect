@@ -128,10 +128,23 @@
    * percent values themselves; one without a base falls back to a flagged,
    * unweighted mean.
    *
-   * @param {string} [overrideAggregation] 'sum' | 'avg' | 'min' | 'max'
+   * @param {string} [overrideAggregation] 'sum' | 'avg' | 'min' | 'max' | 'count'
    * @returns {{value: number|null, approximate: boolean}}
    */
   function aggregateMeasure(column, rowIndices, columnsByName, overrideAggregation) {
+    // Checked before touching `column` at all — a real column counts its
+    // own non-blank cells (COUNT(column), not COUNT(*): two measures with
+    // different gaps in the same rows genuinely have different counts), but
+    // `column` can also be a placeholder with no real values at all — see
+    // engine/layout.js's ROW_COUNT_MEASURE, the "Row count" KPI/chart it
+    // offers for a table with zero measure-role columns — where counting
+    // rows directly is the only thing that makes sense.
+    if (overrideAggregation === 'count') {
+      if (!column || !column.values) return { value: rowIndices.length, approximate: false };
+      let n = 0;
+      for (const i of rowIndices) if (column.values[i] != null) n++;
+      return { value: n, approximate: false };
+    }
     const { decision, values } = column;
     const agg = overrideAggregation || decision.aggregation;
     // Only a *deviation* from a verified weighted ratio counts as an
