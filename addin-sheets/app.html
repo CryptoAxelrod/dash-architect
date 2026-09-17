@@ -1,0 +1,1466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dash Architect</title>
+<!--
+  Replace CryptoAxelrod.github.io/dash-architect below with the HTTPS
+  origin engine/, render/ and addin/ are actually deployed under — same
+  placeholder convention as addin/manifest.xml. Apps Script HtmlService
+  content is served from Google's own sandboxed origin, so unlike
+  addin/taskpane.html these can never be relative paths.
+-->
+<link rel="stylesheet" href="https://CryptoAxelrod.github.io/dash-architect/addin/taskpane.css">
+<link rel="stylesheet" href="https://CryptoAxelrod.github.io/dash-architect/addin/dashboard-dialog.css">
+<link rel="stylesheet" href="https://CryptoAxelrod.github.io/dash-architect/addin/theme-picker.css">
+</head>
+<body>
+
+<header class="brand">
+  <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+    <rect width="32" height="32" rx="7" fill="#1D6F4C"/>
+    <rect x="6" y="6" width="9" height="8" rx="1.5" fill="#fff"/>
+    <rect x="17" y="6" width="9" height="8" rx="1.5" fill="#C6DDD0"/>
+    <rect x="6" y="16.5" width="20" height="9.5" rx="1.5" fill="#C6DDD0"/>
+    <rect x="8.5" y="20.5" width="2.6" height="4" fill="#1D6F4C"/>
+    <rect x="12.9" y="18" width="2.6" height="6.5" fill="#1D6F4C"/>
+    <rect x="17.3" y="21" width="2.6" height="3.5" fill="#1D6F4C"/>
+    <rect x="21.7" y="17" width="2.6" height="7.5" fill="#14523A"/>
+  </svg>
+  <div>
+    <h1>Dash Architect</h1>
+    <p class="tagline">Dashboards for Google Sheets in minutes</p>
+  </div>
+  <button type="button" class="icon-btn" id="show-list" title="Dashboards in this spreadsheet" aria-label="Dashboards in this spreadsheet">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="9" width="14" height="3" rx="1"/><rect x="3" y="14" width="14" height="3" rx="1"/></svg>
+  </button>
+</header>
+
+<div class="account-bar" id="account-bar" hidden>
+  <div class="account-row">
+    <span class="account-email" id="account-email"></span>
+    <button type="button" class="icon-btn" id="account-profile" title="Profile" aria-label="Profile">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="6.5" r="3.5"/><path d="M3 17c0-3.9 3.13-7 7-7s7 3.1 7 7z"/></svg>
+    </button>
+  </div>
+  <div class="account-row">
+    <div class="usage" id="account-usage" hidden>
+      <span class="usage-dots" id="usage-dots" aria-hidden="true">
+        <span class="usage-dot"></span><span class="usage-dot"></span><span class="usage-dot"></span>
+      </span>
+      <span class="usage-label" id="usage-label"></span>
+    </div>
+    <div class="account-pro-badge" id="account-pro-badge" hidden><span class="pill">Pro</span></div>
+    <a href="#" class="account-upgrade" id="account-upgrade" hidden>Upgrade to Pro</a>
+  </div>
+</div>
+
+<p class="build-error" id="build-error" role="alert" hidden></p>
+
+<main id="views">
+
+  <section class="view" id="view-auth">
+    <section class="auth-step">
+      <h2 id="auth-title">Sign in</h2>
+      <p class="step-desc" id="auth-desc">Sign in to use Dash Architect.</p>
+
+      <form id="auth-form" class="auth-form" autocomplete="on">
+        <div class="title-field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" class="title-input" autocomplete="email" required>
+        </div>
+        <div class="title-field">
+          <label for="auth-password">Password</label>
+          <input type="password" id="auth-password" class="title-input" autocomplete="current-password" minlength="6" required>
+        </div>
+        <button type="submit" class="cta cta-static" id="auth-submit">Sign in</button>
+      </form>
+      <button type="button" class="btn-quiet auth-toggle" id="auth-toggle">Don't have an account? Sign up</button>
+
+      <div class="auth-divider"><span>or</span></div>
+      <button type="button" class="auth-google" id="auth-google">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
+        </svg>
+        Continue with Google
+      </button>
+    </section>
+  </section>
+
+  <section class="view" id="view-setup" hidden>
+    <div class="startup-list" id="startup-list" hidden>
+      <h2>Dashboards in this spreadsheet</h2>
+      <ul class="dash-list" id="startup-dash-items"></ul>
+    </div>
+    <p class="startup-orphan-hint" id="startup-orphan-hint" hidden></p>
+    <section class="step">
+      <span class="step-num"><span class="n">1</span><svg class="tick" viewBox="0 0 12 12"><path d="M2.5 6.3 5 8.6 9.5 3.6"/></svg></span>
+      <div class="step-body">
+        <h2>Choose your data</h2>
+        <p class="step-desc">Select the cells on the sheet, then click "Use this selection" below.</p>
+
+        <div class="refedit" id="refedit" data-state="empty">
+          <svg class="ref-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/>
+            <path d="M2.5 8h15M2.5 12.3h15M7.5 3.5v13M12.5 3.5v13"/>
+          </svg>
+          <div class="ref-text" aria-live="polite">
+            <span class="ref-placeholder" id="ref-placeholder">No range yet</span>
+            <span class="ref-cells" id="ref-cells" hidden></span>
+            <span class="ref-sheet" id="ref-sheet" hidden></span>
+          </div>
+          <button type="button" class="ref-btn" id="ref-btn">Use this selection</button>
+        </div>
+
+        <div class="ref-meta" id="ref-meta" hidden>
+          <p class="ref-size" id="ref-size"></p>
+          <div class="headers" id="headers" aria-label="Columns found"></div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section class="view" id="view-list" hidden>
+    <div class="list-head">
+      <h2>Dashboards in this spreadsheet</h2>
+      <button type="button" class="btn-quiet" id="list-back">Back</button>
+    </div>
+    <p class="list-empty" id="list-empty" hidden>No dashboards yet. Select a range and generate one.</p>
+    <ul class="dash-list" id="dash-list"></ul>
+  </section>
+
+  <section class="view" id="view-mapping" hidden>
+    <div class="list-head">
+      <h2>Review column roles</h2>
+      <button type="button" class="btn-quiet" id="mapping-cancel">Cancel</button>
+    </div>
+    <p class="mapping-hint">More than 6 columns — check the roles below before generating. Pre-filled from automatic detection.</p>
+    <div class="mapping-list" id="mapping-list"></div>
+    <button type="button" class="cta cta-static" id="mapping-generate">Generate dashboard</button>
+  </section>
+
+  <section class="view" id="view-theme" hidden>
+    <div class="list-head">
+      <h2>Choose a look</h2>
+      <button type="button" class="btn-quiet" id="theme-cancel">Cancel</button>
+    </div>
+    <div class="title-field">
+      <label for="theme-title-input">Dashboard name</label>
+      <input type="text" id="theme-title-input" class="title-input" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="theme-picker"></div>
+    <button type="button" class="cta cta-static" id="theme-generate">Generate dashboard</button>
+  </section>
+
+  <section class="view" id="view-profile" hidden>
+    <div class="list-head">
+      <h2>Profile</h2>
+      <button type="button" class="btn-quiet" id="profile-back">Back</button>
+    </div>
+    <p class="profile-email" id="profile-email"></p>
+
+    <div class="profile-section" id="profile-free-section" hidden>
+      <div class="usage" id="profile-usage">
+        <span class="usage-dots" id="profile-usage-dots" aria-hidden="true">
+          <span class="usage-dot"></span><span class="usage-dot"></span><span class="usage-dot"></span>
+        </span>
+        <span class="usage-label" id="profile-usage-label"></span>
+      </div>
+      <p class="profile-hint">Upgrade to Pro for unlimited dashboards and no watermark.</p>
+      <button type="button" class="cta cta-upgrade" id="profile-upgrade">Upgrade to Pro</button>
+    </div>
+
+    <div class="profile-section" id="profile-pro-section" hidden>
+      <div class="account-pro-badge"><span class="pill">Pro</span></div>
+      <p class="profile-hint">Unlimited dashboards, no watermark.</p>
+      <button type="button" class="btn-quiet" id="profile-cancel-sub">Cancel subscription</button>
+      <div class="dash-item-confirm" id="profile-cancel-confirm" hidden>
+        <span>Cancel your subscription?</span>
+        <button type="button" class="danger" id="profile-cancel-yes">Cancel</button>
+        <button type="button" id="profile-cancel-no">Keep it</button>
+      </div>
+    </div>
+
+    <button type="button" class="btn-quiet profile-signout" id="profile-signout">Sign out</button>
+  </section>
+
+  <!-- The live/frozen dashboard — the Excel add-in mounts this in a
+       separate dialog window (SPEC.md §14.5/§14.6) because its task pane
+       is too narrow for a 1180px canvas. This add-on's single window has
+       no such constraint, so it's just another view here: no
+       message-relay protocol, every action below calls Code.gs directly. -->
+  <section class="view" id="view-dashboard" hidden>
+    <div class="toolbar">
+      <button type="button" class="btn-quiet" id="dlg-back">◀ Dashboards</button>
+      <div class="themes" id="dlg-themes">
+        <button type="button" data-theme="light" aria-pressed="true">Light</button>
+        <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+        <button type="button" data-theme="report" aria-pressed="false">Report</button>
+        <button type="button" data-theme="print" aria-pressed="false">Print</button>
+      </div>
+      <div class="toolbar-actions" id="dlg-live-actions" hidden>
+        <span class="source-label" id="dlg-source"></span>
+        <span class="refreshed-at" id="dlg-refreshed-at"></span>
+        <button type="button" class="tbtn" id="dlg-refresh">Refresh</button>
+        <button type="button" class="tbtn tbtn-icon" id="dlg-settings-toggle" title="Dashboard settings" aria-label="Dashboard settings">⚙</button>
+      </div>
+      <p class="status" id="dlg-status" hidden></p>
+    </div>
+    <div class="banner" id="dlg-banner" hidden></div>
+    <div class="stage"><div class="inner" id="dlg-mount"></div></div>
+
+    <div class="settings-panel" id="dlg-settings" hidden>
+      <div class="settings-head">
+        <h2>Dashboard settings</h2>
+        <button type="button" class="tbtn" id="dlg-settings-close">Close</button>
+      </div>
+      <div class="settings-section">
+        <h3>Data source</h3>
+        <button type="button" class="tbtn" id="dlg-change-range">Change data range</button>
+      </div>
+      <div class="settings-section">
+        <h3>Theme &amp; palette</h3>
+        <div id="dlg-theme-picker"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Filters</h3>
+        <div id="dlg-settings-filters"></div>
+      </div>
+      <div class="settings-section">
+        <h3>KPI cards</h3>
+        <div id="dlg-settings-kpis"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Charts</h3>
+        <div id="dlg-settings-charts"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Table</h3>
+        <div id="dlg-settings-table-columns"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Sections</h3>
+        <label class="settings-row"><input type="checkbox" id="dlg-cfg-table" checked> Table</label>
+        <label class="settings-row"><input type="checkbox" id="dlg-cfg-filters" checked> Filters</label>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="build" id="build" data-state="idle">
+  <div class="build-idle" id="build-idle">
+    <div class="build-row">
+      <span class="step-num footer-step"><span class="n">2</span></span>
+      <p class="summary" id="summary">Choose data above</p>
+    </div>
+    <button type="button" class="cta" id="generate" disabled>
+      <span class="cta-fill" id="cta-fill"></span>
+      <span class="cta-label" id="cta-label">Generate dashboard</span>
+    </button>
+    <button type="button" class="cta cta-upgrade" id="upgrade-cta" hidden>Upgrade to Pro</button>
+    <button type="button" class="btn-quiet" id="cancel-change-range" hidden>Cancel</button>
+    <p class="build-timing" id="build-timing" hidden></p>
+  </div>
+</footer>
+
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/values.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/csv.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/clean.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/profile.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/roles.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/aggregate.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/layout.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/reconcile.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/engine/index.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/format.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/palettes.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/themes.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/svg.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/share.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/render/dom.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/addin/theme-picker.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/addin/dashboard-io.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/addin/auth.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/addin-sheets/sheets-format-bridge.js"></script>
+<script src="https://CryptoAxelrod.github.io/dash-architect/addin-sheets/sheets-io.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const plural = (n, one, many) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+  const els = {};
+
+  /* ---------- google.script.run, promisified ---------- */
+  function gsRun(fnName, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((err) => reject(err instanceof Error ? err : new Error((err && err.message) || String(err))))
+        [fnName](...args);
+    });
+  }
+
+  // Mirrors addin/taskpane.js's excelHost/previewHost interface — the same
+  // dependency-injection seam, just backed by google.script.run instead of
+  // Excel.run. `readRangeForEngine` is the one method that does real work
+  // client-side (addin-sheets/sheets-io.js#toEngineInput): Code.gs's
+  // readRangeRaw only ever returns plain, host-shaped arrays, same split
+  // as addin/excel-io.js.
+  const host = {
+    detectSource: () => gsRun('detectSource'),
+    async readRangeForEngine(source) {
+      const raw = await gsRun('readRangeRaw', source);
+      const { headers, dataRows } = window.DashSheetsIo.toEngineInput(raw);
+      return { headers, dataRows, totalRows: raw.totalRows, cols: raw.cols, timing: raw.timing };
+    },
+    getWorkbookName: () => gsRun('getWorkbookName'),
+    listDashboards: () => gsRun('listDashboards'),
+    countOrphanedDashboardShapes: () => gsRun('countOrphanedDashboardShapes'),
+    deleteDashboard: (shapeName) => gsRun('deleteDashboard', shapeName),
+    renameDashboard: (shapeName, newTitle, snapshot) => gsRun('renameDashboard', shapeName, newTitle, snapshot || null),
+    async saveDraft(shapeName, args) {
+      const payload = window.DashAddinDashboardIo.buildStoragePayload(Object.assign({}, args, { placed: false }));
+      await gsRun('saveGeneratedDraft', shapeName, payload);
+    },
+    async placeDashboard(args) {
+      const payload = window.DashAddinDashboardIo.buildStoragePayload(args);
+      return gsRun('generateAndPlace', { pngBase64: args.pngBase64, canvasSize: args.canvasSize, payload, shapeName: args.shapeName || undefined });
+    },
+  };
+
+  const state = {
+    busy: false,
+    source: null, // {kind:'range', address, sheetName, a1, headers}
+    range: null, // {address, sheetName, a1, rows, cols}
+    analysis: null,
+    roleOverrides: null,
+    title: null,
+    theme: 'light',
+    palette: 'ocean',
+    currentShapeName: null,
+    pickingFor: 'generate', // 'generate' | 'change-range'
+    pendingChangeRange: null, // {resolve, sourceBefore, rangeBefore}
+    accountStatus: null,
+  };
+  const FREE_DASHBOARD_LIMIT = 3;
+  const PADDLE_ENVIRONMENT = 'sandbox';
+  const PADDLE_CLIENT_TOKEN = 'test_266ab403d21523250589711ed5d';
+  const PADDLE_PRICE_MONTHLY = 'pri_01m2ng7ke4gybp95b4ccngsbx5';
+  const PADDLE_PRICE_ANNUAL = 'pri_01m2ng7ks13ea329a69s0ysf12';
+
+  /* ---------- dashboard-view-local state (mirrors addin/dashboard-dialog.js's
+     module-level vars — the same page now, so nothing here needs to survive
+     a window close the way STATE_UPDATE let it for Excel's separate dialog;
+     see addin-sheets sidebar of SPEC.md §15 for that trade-off). ---------- */
+  let dlgController = null;
+  let dlgMode = null; // 'live' | 'frozen'
+  let widgetConfig = { enabledKpis: null, enabledCharts: null, chartOverrides: null, showCharts: true, showTable: true, showFilters: true, showWatermark: false };
+  let isPro = false;
+  let currentAnalysis = null;
+  let currentMeta = null;
+  let currentSourceLabel = '';
+  let canvasSize = null;
+
+  const Engine = window.DashEngine;
+  const THEMES = window.DashRenderThemes.THEMES;
+  const Palettes = window.DashRenderPalettes;
+
+  function activeTheme() { return Palettes.withPalette(THEMES[state.theme], state.palette); }
+
+  function sourceLabel(source) {
+    const s = source || state.source;
+    return s ? s.address : '';
+  }
+
+  /* ---------- boot ---------- */
+  async function init() {
+    Object.assign(els, {
+      showList: $('show-list'),
+      viewAuth: $('view-auth'), authForm: $('auth-form'), authEmail: $('auth-email'), authPassword: $('auth-password'),
+      authSubmit: $('auth-submit'), authToggle: $('auth-toggle'), authTitle: $('auth-title'), authDesc: $('auth-desc'), authGoogle: $('auth-google'),
+      accountBar: $('account-bar'), accountEmail: $('account-email'), accountProfile: $('account-profile'),
+      accountUsage: $('account-usage'), usageDots: $('usage-dots'), usageLabel: $('usage-label'),
+      accountProBadge: $('account-pro-badge'), accountUpgrade: $('account-upgrade'), upgradeCta: $('upgrade-cta'),
+      viewProfile: $('view-profile'), profileBack: $('profile-back'), profileEmail: $('profile-email'),
+      profileFreeSection: $('profile-free-section'), profileUsageDots: $('profile-usage-dots'), profileUsageLabel: $('profile-usage-label'),
+      profileUpgrade: $('profile-upgrade'),
+      profileProSection: $('profile-pro-section'), profileCancelSub: $('profile-cancel-sub'),
+      profileCancelConfirm: $('profile-cancel-confirm'), profileCancelYes: $('profile-cancel-yes'), profileCancelNo: $('profile-cancel-no'),
+      profileSignout: $('profile-signout'),
+      viewSetup: $('view-setup'), viewList: $('view-list'), viewMapping: $('view-mapping'), viewDashboard: $('view-dashboard'),
+      refedit: $('refedit'), refBtn: $('ref-btn'), placeholder: $('ref-placeholder'), cells: $('ref-cells'), sheet: $('ref-sheet'),
+      meta: $('ref-meta'), size: $('ref-size'), headers: $('headers'),
+      summary: $('summary'), build: $('build'),
+      generate: $('generate'), ctaLabel: $('cta-label'), ctaFill: $('cta-fill'), buildError: $('build-error'), buildTiming: $('build-timing'),
+      cancelChangeRange: $('cancel-change-range'),
+      listBack: $('list-back'), listEmpty: $('list-empty'), dashList: $('dash-list'),
+      startupList: $('startup-list'), startupDashItems: $('startup-dash-items'), startupOrphanHint: $('startup-orphan-hint'),
+      mappingList: $('mapping-list'), mappingGenerate: $('mapping-generate'), mappingCancel: $('mapping-cancel'),
+      viewTheme: $('view-theme'), themePicker: $('theme-picker'), themeGenerate: $('theme-generate'), themeCancel: $('theme-cancel'),
+      themeTitleInput: $('theme-title-input'),
+      dlgBack: $('dlg-back'), dlgThemes: $('dlg-themes'), dlgStatus: $('dlg-status'), dlgBanner: $('dlg-banner'), dlgMount: $('dlg-mount'),
+      dlgLiveActions: $('dlg-live-actions'), dlgSource: $('dlg-source'), dlgRefreshedAt: $('dlg-refreshed-at'), dlgRefresh: $('dlg-refresh'),
+      dlgChangeRange: $('dlg-change-range'), dlgSettingsToggle: $('dlg-settings-toggle'), dlgSettingsPanel: $('dlg-settings'),
+      dlgSettingsClose: $('dlg-settings-close'), dlgSettingsThemePicker: $('dlg-theme-picker'), dlgSettingsFilters: $('dlg-settings-filters'),
+      dlgSettingsKpis: $('dlg-settings-kpis'), dlgSettingsCharts: $('dlg-settings-charts'), dlgSettingsTableColumns: $('dlg-settings-table-columns'),
+      dlgCfgTable: $('dlg-cfg-table'), dlgCfgFilters: $('dlg-cfg-filters'),
+    });
+
+    els.refBtn.addEventListener('click', onUseSelectionClick);
+    els.generate.addEventListener('click', () => {
+      if (state.pickingFor === 'change-range') completeChangeRangePicking();
+      else generate();
+    });
+    els.themeGenerate.addEventListener('click', finalizeGenerate);
+    els.themeCancel.addEventListener('click', () => showView('setup'));
+    els.themeTitleInput.addEventListener('input', () => { state.title = els.themeTitleInput.value; });
+    els.cancelChangeRange.addEventListener('click', cancelChangeRangePicking);
+    els.showList.addEventListener('click', showList);
+    els.listBack.addEventListener('click', () => showView(state.analysis ? 'dashboard' : 'setup'));
+    els.dlgBack.addEventListener('click', showList);
+
+    els.authForm.addEventListener('submit', onAuthSubmit);
+    els.authToggle.addEventListener('click', toggleAuthMode);
+    els.authGoogle.addEventListener('click', onGoogleSignIn);
+    els.accountProfile.addEventListener('click', showProfile);
+    els.accountUpgrade.addEventListener('click', onUpgradeClick);
+    els.upgradeCta.addEventListener('click', onUpgradeClick);
+
+    els.profileBack.addEventListener('click', () => showView(state.analysis ? 'dashboard' : 'setup'));
+    els.profileSignout.addEventListener('click', onSignOut);
+    els.profileUpgrade.addEventListener('click', onUpgradeClick);
+    els.profileCancelSub.addEventListener('click', () => { els.profileCancelConfirm.hidden = false; });
+    els.profileCancelNo.addEventListener('click', () => { els.profileCancelConfirm.hidden = true; });
+    els.profileCancelYes.addEventListener('click', onCancelSubscriptionConfirmed);
+
+    wireDashboardView();
+    renderProgress();
+    showView('auth');
+    els.authDesc.textContent = 'Checking your session…';
+    els.authSubmit.disabled = true;
+    els.authToggle.hidden = true;
+    const session = await window.DashAuth.restoreSession();
+    if (session) await enterApp();
+    else resetAuthForm();
+  }
+  document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState !== 'loading') init();
+
+  /* ---------- auth gate (host-agnostic — see addin/taskpane.js, this is
+     carried over near-verbatim since none of it touches Excel/Sheets) ---------- */
+  let authMode = 'signin';
+
+  function resetAuthForm() {
+    authMode = 'signin';
+    els.authTitle.textContent = 'Sign in';
+    els.authDesc.textContent = 'Sign in to use Dash Architect.';
+    els.authSubmit.textContent = 'Sign in';
+    els.authSubmit.disabled = false;
+    els.authToggle.textContent = "Don't have an account? Sign up";
+    els.authToggle.hidden = false;
+    els.authPassword.autocomplete = 'current-password';
+  }
+
+  function toggleAuthMode() {
+    authMode = authMode === 'signin' ? 'signup' : 'signin';
+    els.buildError.hidden = true;
+    if (authMode === 'signup') {
+      els.authTitle.textContent = 'Create an account';
+      els.authDesc.textContent = 'No email confirmation needed — you can start right away.';
+      els.authSubmit.textContent = 'Sign up';
+      els.authToggle.textContent = 'Already have an account? Sign in';
+      els.authPassword.autocomplete = 'new-password';
+    } else {
+      els.authTitle.textContent = 'Sign in';
+      els.authDesc.textContent = 'Sign in to use Dash Architect.';
+      els.authSubmit.textContent = 'Sign in';
+      els.authToggle.textContent = "Don't have an account? Sign up";
+      els.authPassword.autocomplete = 'current-password';
+    }
+  }
+
+  async function onAuthSubmit(e) {
+    e.preventDefault();
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    els.authSubmit.disabled = true;
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+    try {
+      if (authMode === 'signup') await window.DashAuth.signUp(email, password);
+      else await window.DashAuth.signIn(email, password);
+      els.authPassword.value = '';
+      await enterApp();
+    } catch (err) {
+      els.buildError.textContent = (err && err.message) || 'Could not sign in.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.authSubmit.disabled = false;
+    }
+  }
+
+  // Google sign-in / Paddle checkout both need a real top-level browser
+  // popup, not an Apps Script dialog: Google's own login page refuses to
+  // render inside an iframe (which is what any HtmlService surface is),
+  // Apps Script sidebar or dialog alike. window.open() from this page —
+  // itself just a browser page — works fine; addin/auth-callback.html and
+  // addin/paddle-checkout.html already post their result back via
+  // window.opener.postMessage (their Office.context.ui.messageParent
+  // branch simply never fires here, since window.Office doesn't exist).
+  function openResultPopup(url) {
+    return new Promise((resolve, reject) => {
+      const win = window.open(url, 'dash-result', 'width=480,height=640');
+      if (!win) { reject(new Error('Pop-up blocked — allow pop-ups for this page and try again.')); return; }
+      let settled = false;
+      const onMessage = (e) => {
+        if (settled || e.source !== win || !e.data || e.data.__dashDialogResult !== true) return;
+        settled = true;
+        cleanup();
+        resolve(e.data.params);
+      };
+      const closedTimer = setInterval(() => {
+        if (win.closed && !settled) { settled = true; cleanup(); reject(new Error('Window closed before finishing.')); }
+      }, 400);
+      function cleanup() { clearInterval(closedTimer); window.removeEventListener('message', onMessage); if (!win.closed) win.close(); }
+      window.addEventListener('message', onMessage);
+    });
+  }
+
+  async function onGoogleSignIn() {
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    els.authGoogle.disabled = true;
+    try {
+      const redirectTo = 'https://CryptoAxelrod.github.io/dash-architect/addin/auth-callback.html';
+      const url = window.DashAuth.authorizeUrl(redirectTo);
+      const params = await openResultPopup(url);
+      await window.DashAuth.completeOAuthSession(params);
+      await enterApp();
+    } catch (err) {
+      els.buildError.textContent = (err && err.message) || 'Could not sign in with Google.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.authGoogle.disabled = false;
+    }
+  }
+
+  async function onSignOut() {
+    if (state.busy) return;
+    state.busy = true;
+    try { await window.DashAuth.signOut(); } catch (e) { /* best-effort */ }
+    state.busy = false;
+    startOver();
+    els.authEmail.value = '';
+    els.authPassword.value = '';
+    resetAuthForm();
+    showView('auth');
+    state.accountStatus = null;
+    lastUsageDotsFilled = null;
+  }
+
+  async function enterApp() {
+    const session = window.DashAuth.getSession();
+    updateAccountBar(session, null);
+    showView('setup');
+    renderProgress();
+    await refreshStartupList();
+    window.DashAuth.fetchAccountStatus().then((status) => { if (status) updateAccountBar(session, status); }).catch(() => {});
+  }
+
+  let lastUsageDotsFilled = null;
+
+  function updateAccountBar(session, status) {
+    if (!session) return;
+    els.accountBar.hidden = false;
+    els.accountEmail.textContent = session.user.email;
+    state.accountStatus = status;
+
+    const isProAccount = !!(status && status.isPro);
+    els.accountProBadge.hidden = !isProAccount;
+    els.accountUpgrade.hidden = isProAccount;
+    els.accountUsage.hidden = !status || isProAccount;
+
+    if (status && !isProAccount) {
+      const used = Math.min(status.dashboardsCreated, FREE_DASHBOARD_LIMIT);
+      const remaining = Math.max(0, FREE_DASHBOARD_LIMIT - status.dashboardsCreated);
+      const dots = els.usageDots.children;
+      for (let i = 0; i < dots.length; i++) { dots[i].classList.toggle('filled', i < used); dots[i].classList.remove('just-used'); }
+      if (lastUsageDotsFilled != null && used > lastUsageDotsFilled && dots[used - 1]) {
+        void dots[used - 1].offsetWidth;
+        dots[used - 1].classList.add('just-used');
+      }
+      lastUsageDotsFilled = used;
+      els.usageLabel.textContent = remaining > 0 ? `${plural(remaining, 'dashboard', 'dashboards')} left` : 'Free limit reached';
+      els.usageLabel.classList.toggle('limit-reached', remaining === 0);
+    }
+    syncIdleFooter();
+  }
+
+  async function onUpgradeClick(e) {
+    if (e) e.preventDefault();
+    if (state.busy) return;
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    try {
+      const url = new URL('https://CryptoAxelrod.github.io/dash-architect/addin/paddle-checkout.html');
+      url.searchParams.set('uid', session.user.id);
+      url.searchParams.set('env', PADDLE_ENVIRONMENT);
+      url.searchParams.set('token', PADDLE_CLIENT_TOKEN);
+      url.searchParams.set('priceMonthly', PADDLE_PRICE_MONTHLY);
+      url.searchParams.set('priceAnnual', PADDLE_PRICE_ANNUAL);
+      const result = await openResultPopup(url.href);
+      if (result && result.status === 'completed') {
+        await waitForProSync();
+        renderProfileSections();
+      }
+    } catch (err) {
+      els.buildError.textContent = (err && err.message) || 'Checkout did not complete.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  async function waitForProSync() {
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    for (let i = 0; i < 6; i++) {
+      const status = await window.DashAuth.fetchAccountStatus().catch(() => null);
+      if (status) { updateAccountBar(session, status); if (status.isPro) return; }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  function renderProfileUsage(status) {
+    const used = Math.min(status.dashboardsCreated, FREE_DASHBOARD_LIMIT);
+    const remaining = Math.max(0, FREE_DASHBOARD_LIMIT - status.dashboardsCreated);
+    const dots = els.profileUsageDots.children;
+    for (let i = 0; i < dots.length; i++) dots[i].classList.toggle('filled', i < used);
+    els.profileUsageLabel.textContent = remaining > 0 ? `${plural(remaining, 'dashboard', 'dashboards')} left` : 'Free limit reached';
+    els.profileUsageLabel.classList.toggle('limit-reached', remaining === 0);
+  }
+
+  function renderProfileSections() {
+    const status = state.accountStatus;
+    const isProAccount = !!(status && status.isPro);
+    els.profileFreeSection.hidden = isProAccount;
+    els.profileProSection.hidden = !isProAccount;
+    if (status && !isProAccount) renderProfileUsage(status);
+  }
+
+  function showProfile() {
+    const session = window.DashAuth.getSession();
+    if (!session) return;
+    els.profileEmail.textContent = session.user.email;
+    els.profileCancelConfirm.hidden = true;
+    renderProfileSections();
+    showView('profile');
+  }
+
+  async function onCancelSubscriptionConfirmed() {
+    if (state.busy) return;
+    state.busy = true;
+    els.profileCancelYes.disabled = true;
+    els.buildError.hidden = true;
+    try {
+      await window.DashAuth.cancelSubscription();
+      els.profileCancelConfirm.hidden = true;
+      await waitForProSync();
+      renderProfileSections();
+    } catch (err) {
+      els.buildError.textContent = (err && err.message) || 'Could not cancel subscription.';
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      els.profileCancelYes.disabled = false;
+    }
+  }
+
+  /* ---------- startup dashboard list ---------- */
+  async function refreshStartupList() {
+    let dashboards = [];
+    try { dashboards = await host.listDashboards(); } catch (e) { return; }
+    els.startupList.hidden = !dashboards.length;
+    els.startupDashItems.innerHTML = '';
+    for (const d of dashboards) els.startupDashItems.appendChild(renderDashListItem(d));
+    els.startupOrphanHint.hidden = true;
+    if (!dashboards.length) {
+      let orphanCount = 0;
+      try { orphanCount = await host.countOrphanedDashboardShapes(); } catch (e) { /* leave hidden */ }
+      if (orphanCount > 0) {
+        els.startupOrphanHint.hidden = false;
+        els.startupOrphanHint.textContent = `There ${orphanCount === 1 ? 'is' : 'are'} ${orphanCount} dashboard picture${orphanCount === 1 ? '' : 's'} on the sheets, but no saved settings to match — the spreadsheet tab was likely closed before saving finished. Generate again to get the interactive version back.`;
+      }
+    }
+  }
+
+  /* ---------- range selection: no live "picking" push exists in Apps
+     Script (unlike Office.js's DocumentSelectionChanged) — select cells on
+     the sheet, then click the button, which re-reads whatever is selected
+     right now. ---------- */
+  async function onUseSelectionClick() {
+    if (state.busy) return;
+    els.buildError.hidden = true;
+    try {
+      const source = await host.detectSource();
+      if (!source) { els.buildError.textContent = 'Select some cells on the sheet first.'; els.buildError.hidden = false; return; }
+      state.source = source;
+      state.range = { rows: source.rows, cols: source.cols };
+      showAddress(source);
+      renderProgress();
+    } catch (err) {
+      els.buildError.textContent = `Could not read the selection: ${(err && err.message) || String(err)}`;
+      els.buildError.hidden = false;
+    }
+  }
+
+  function showAddress(source) {
+    els.refedit.dataset.state = 'set';
+    els.refBtn.textContent = 'Change';
+    els.placeholder.hidden = true;
+    els.cells.hidden = false;
+    els.cells.textContent = source.a1;
+    els.sheet.hidden = false;
+    els.sheet.textContent = source.sheetName;
+    els.size.textContent = `${plural(Math.max(source.rows - 1, 0), 'row', 'rows')}, ${plural(source.cols, 'column', 'columns')}`;
+    els.headers.innerHTML = '';
+    source.headers.forEach((h, i) => {
+      const span = document.createElement('span');
+      span.className = 'header-chip';
+      if (i === 0) span.classList.add('header-chip-first');
+      span.textContent = h || '(blank)';
+      els.headers.appendChild(span);
+    });
+    els.meta.hidden = false;
+  }
+
+  function restoreEmptyRange() {
+    state.range = null;
+    state.source = null;
+    els.refedit.dataset.state = 'empty';
+    els.refBtn.textContent = 'Use this selection';
+    els.placeholder.hidden = false;
+    els.cells.hidden = true;
+    els.sheet.hidden = true;
+    els.meta.hidden = true;
+    renderProgress();
+  }
+
+  async function computeDefaultTitle() {
+    let base = state.source ? state.source.sheetName : null;
+    if (!base) { try { base = await host.getWorkbookName(); } catch (e) { base = null; } }
+    if (!base) base = 'Dashboard';
+    let existingTitles;
+    try { existingTitles = new Set((await host.listDashboards()).map((d) => d.payload.title).filter(Boolean)); } catch (e) { return base; }
+    if (!existingTitles.has(base)) return base;
+    let n = 2;
+    while (existingTitles.has(`${base} (${n})`)) n++;
+    return `${base} (${n})`;
+  }
+
+  function mappingToOverrides(mapping) {
+    const overrides = {};
+    for (const m of mapping) overrides[m.name] = { role: m.role, chartEligible: m.chartEligible !== false };
+    return overrides;
+  }
+
+  async function findSavedMappingForSource(label) {
+    if (!label) return null;
+    let dashboards;
+    try { dashboards = await host.listDashboards(); } catch (e) { return null; }
+    const candidates = dashboards.filter((d) => d.payload.sourceAddress === label && Array.isArray(d.payload.mapping));
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => new Date(b.payload.generatedAt || 0) - new Date(a.payload.generatedAt || 0));
+    return mappingToOverrides(candidates[0].payload.mapping);
+  }
+
+  function renderProgress() {
+    document.querySelector('#view-setup .step').classList.toggle('done', !!state.source);
+    els.summary.innerHTML = state.source ? `Ready to generate from <strong>${sourceLabel()}</strong>` : 'Choose data above';
+    syncIdleFooter();
+  }
+
+  function syncIdleFooter() {
+    const changeRangeMode = state.pickingFor === 'change-range';
+    const status = state.accountStatus;
+    const atLimit = !!status && !status.isPro && status.dashboardsCreated >= FREE_DASHBOARD_LIMIT;
+    els.upgradeCta.hidden = changeRangeMode || !atLimit;
+    els.cancelChangeRange.hidden = !changeRangeMode;
+    els.ctaLabel.textContent = changeRangeMode ? 'Use this range' : 'Generate dashboard';
+    els.generate.disabled = !state.source || (atLimit && !changeRangeMode);
+  }
+
+  /* ---------- mapping screen (>6 columns) ---------- */
+  const ROLE_OPTIONS = [
+    ['measure', 'Measure'], ['dimension', 'Category'], ['dimension_filter', 'Filter only'],
+    ['time', 'Date'], ['text', 'Text (table only)'], ['excluded', "Don't use"],
+  ];
+  function roleOptionFor(decision) {
+    if (decision.role === 'dimension') return decision.chartEligible === false ? 'dimension_filter' : 'dimension';
+    return decision.role;
+  }
+  function showMappingScreen(analysis, onConfirm, onCancel) {
+    showView('mapping');
+    els.mappingList.innerHTML = '';
+    const rows = analysis.columns.map((col) => {
+      const row = document.createElement('div');
+      row.className = 'mapping-row';
+      const name = document.createElement('span');
+      name.className = 'mapping-name';
+      name.textContent = col.name;
+      const select = document.createElement('select');
+      select.className = 'mapping-select';
+      for (const [value, label] of ROLE_OPTIONS) {
+        const opt = document.createElement('option');
+        opt.value = value; opt.textContent = label;
+        select.appendChild(opt);
+      }
+      select.value = roleOptionFor(col.decision);
+      row.append(name, select);
+      els.mappingList.appendChild(row);
+      return { name: col.name, select };
+    });
+    function onGenerateClick() {
+      const overrides = {};
+      for (const { name, select } of rows) {
+        overrides[name] = select.value === 'dimension_filter' ? { role: 'dimension', chartEligible: false }
+          : select.value === 'dimension' ? { role: 'dimension', chartEligible: true }
+          : { role: select.value };
+      }
+      cleanup();
+      onConfirm(window.DashEngine.applyRoleOverrides(analysis, overrides), overrides);
+    }
+    function onCancelClick() { cleanup(); if (onCancel) onCancel(); else showView('setup'); }
+    function cleanup() {
+      els.mappingGenerate.removeEventListener('click', onGenerateClick);
+      els.mappingCancel.removeEventListener('click', onCancelClick);
+    }
+    els.mappingGenerate.addEventListener('click', onGenerateClick);
+    els.mappingCancel.addEventListener('click', onCancelClick);
+  }
+
+  /* ---------- generate ---------- */
+  async function generate() {
+    if (state.busy || !state.source || state.pickingFor === 'change-range') return;
+    state.busy = true;
+    document.body.classList.add('busy');
+    els.buildError.hidden = true;
+    els.buildTiming.hidden = true;
+    els.ctaFill.style.transitionDuration = '400ms';
+    try {
+      setCta('Reading your data…', 33);
+      const { headers, dataRows, timing, totalRows } = await host.readRangeForEngine(state.source);
+      setCta('Classifying columns…', 66);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      state.title = await computeDefaultTitle();
+      if (timing) {
+        els.buildTiming.hidden = false;
+        els.buildTiming.textContent = `Read ${totalRows.toLocaleString('en-US')} rows in ${timing.totalMs}ms (values ${timing.valuesMs}ms, format sample ${timing.formatMs}ms)`;
+      }
+      if (state.roleOverrides == null) state.roleOverrides = await findSavedMappingForSource(sourceLabel());
+      const effectiveAnalysis = window.DashEngine.applyRoleOverrides(rawAnalysis, state.roleOverrides);
+      const proceed = (analysis, overrides) => {
+        state.roleOverrides = overrides !== undefined ? overrides : state.roleOverrides;
+        state.analysis = analysis;
+        showThemeScreen();
+      };
+      if (effectiveAnalysis.columns.length > 6) showMappingScreen(effectiveAnalysis, proceed);
+      else proceed(effectiveAnalysis, state.roleOverrides);
+    } catch (err) {
+      els.buildError.textContent = `Could not generate the dashboard: ${(err && err.message) || String(err)}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+      document.body.classList.remove('busy');
+      els.ctaFill.style.transitionDuration = '0ms';
+      els.ctaFill.style.width = '0';
+      syncIdleFooter();
+    }
+  }
+  function setCta(label, pct) { els.ctaLabel.textContent = label; els.ctaFill.style.width = `${pct}%`; }
+
+  /* ---------- theme + palette step ---------- */
+  function showThemeScreen() { showView('theme'); els.themeTitleInput.value = state.title || ''; renderThemePickerView(); }
+  function renderThemePickerView() {
+    window.DashThemePicker.render(
+      els.themePicker, { THEMES: window.DashRenderThemes.THEMES, Palettes: window.DashRenderPalettes },
+      { theme: state.theme, palette: state.palette },
+      { onThemeChange: (id) => { state.theme = id; renderThemePickerView(); }, onPaletteChange: (id) => { state.palette = id; renderThemePickerView(); } }
+    );
+  }
+
+  async function finalizeGenerate() {
+    if (state.busy) return;
+    state.busy = true;
+    els.buildError.hidden = true;
+    state.title = (state.title || '').trim() || 'Dashboard';
+    try {
+      state.currentShapeName = window.DashAddinDashboardIo.makeShapeName(Date.now());
+      const mapping = state.analysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
+      try {
+        await host.saveDraft(state.currentShapeName, { mapping, sourceAddress: sourceLabel(), source: state.source, title: state.title, theme: state.theme, palette: state.palette });
+      } catch (draftErr) {
+        els.buildError.textContent = `Generated, but could not save it to your dashboard list yet: ${(draftErr && draftErr.message) || draftErr}.`;
+        els.buildError.hidden = false;
+      }
+      window.DashAuth.incrementDashboardCount().then((n) => {
+        if (n != null) updateAccountBar(window.DashAuth.getSession(), Object.assign({}, state.accountStatus, { dashboardsCreated: n }));
+      }).catch(() => {});
+      currentAnalysis = state.analysis;
+      currentMeta = { title: state.title, subtitle: `${state.analysis.rowCount.toLocaleString('en-US')} rows` };
+      currentSourceLabel = sourceLabel();
+      isPro = !!(state.accountStatus && state.accountStatus.isPro);
+      mountLive(null);
+      showView('dashboard');
+    } catch (err) {
+      showView('setup');
+      els.buildError.textContent = `Could not generate the dashboard: ${(err && err.message) || String(err)}`;
+      els.buildError.hidden = false;
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  function startOver() {
+    state.range = null;
+    state.source = null;
+    state.analysis = null;
+    state.roleOverrides = null;
+    state.currentShapeName = null;
+    currentAnalysis = null;
+    currentMeta = null;
+    els.dlgMount.innerHTML = '';
+    dlgController = null;
+    restoreEmptyRange();
+    showView('setup');
+    syncIdleFooter();
+  }
+
+  /* ---------- dashboard view: mirrors addin/dashboard-dialog.js, minus the
+     dialog<->parent transport — every action below calls Code.gs or the
+     engine/render modules directly, in the same JS context. ---------- */
+  function currentRawState() {
+    const s = dlgController && dlgMode === 'live' ? dlgController.getState() : {};
+    return {
+      activeFilters: Object.fromEntries(Object.entries(s.activeFilters || {}).map(([k, v]) => [k, [...v]])),
+      sort: s.sort || null, theme: state.theme, palette: state.palette, widgetConfig,
+      title: currentMeta && currentMeta.title,
+    };
+  }
+
+  function syncThemeButtons() {
+    [...els.dlgThemes.querySelectorAll('button')].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === state.theme)));
+  }
+
+  function mountFrozenDashboard(layoutSpec, theme, palette) {
+    dlgMode = 'frozen';
+    els.dlgLiveActions.hidden = true;
+    els.dlgThemes.hidden = false;
+    currentAnalysis = null;
+    if (theme) state.theme = theme;
+    if (palette) state.palette = palette;
+    syncThemeButtons();
+    canvasSize = layoutSpec.canvas;
+    dlgController = window.DashRenderDom.mountFrozen(els.dlgMount, layoutSpec, activeTheme());
+  }
+
+  function mountLive(seedReconciled) {
+    dlgMode = 'live';
+    els.dlgLiveActions.hidden = false;
+    els.dlgThemes.hidden = true;
+    if (currentSourceLabel) els.dlgSource.textContent = currentSourceLabel;
+    if (seedReconciled) {
+      state.theme = seedReconciled.theme || state.theme;
+      state.palette = seedReconciled.palette || state.palette;
+      widgetConfig = seedReconciled.widgetConfig || widgetConfig;
+    }
+    widgetConfig = Object.assign({}, widgetConfig, { showWatermark: !isPro });
+    syncThemeButtons();
+    syncSettingsPanel();
+    els.dlgMount.innerHTML = '';
+    const initialState = seedReconciled ? { activeFilters: seedReconciled.activeFilters, sort: seedReconciled.sort } : undefined;
+    const metaWithConfig = Object.assign({}, currentMeta, { widgetConfig });
+    dlgController = window.DashRenderDom.mount(els.dlgMount, currentAnalysis, activeTheme(), metaWithConfig, {
+      onPlaceOnSheet, onOpenMapping, initialState, onStateChange: () => {}, onTitleChange: onRenameTitle,
+    });
+    canvasSize = dlgController.getLayoutSpec().canvas;
+  }
+
+  function onRenameTitle(newTitle) { currentMeta = Object.assign({}, currentMeta, { title: newTitle }); state.title = newTitle; }
+
+  async function onPlaceOnSheet(spec) {
+    els.buildError.hidden = true;
+    try {
+      const baseTheme = window.DashRenderThemes.THEMES[spec.theme || state.theme];
+      const theme = window.DashRenderPalettes.withPalette(baseTheme, spec.palette || state.palette);
+      const currentSpec = { canvas: spec.canvas, widgets: spec.widgets };
+      const columnsByName = window.DashEngine.Aggregate.byName(currentAnalysis.columns);
+      const pngBase64 = await window.DashRenderShare.renderPngBase64(currentSpec, theme, columnsByName, { scale: 2 });
+      const snapshot = window.DashEngine.Layout.buildStorageSnapshot(currentSpec, currentAnalysis.columns);
+      const mapping = currentAnalysis.columns.map((c) => ({ name: c.name, role: c.decision.role, aggregation: c.decision.aggregation, chartEligible: c.decision.chartEligible !== false }));
+      const { shapeName } = await host.placeDashboard({
+        pngBase64, canvasSize: currentSpec.canvas, snapshot, mapping, sourceAddress: currentSourceLabel, source: state.source,
+        title: state.title, theme: spec.theme || state.theme, palette: spec.palette || state.palette, shapeName: state.currentShapeName || undefined,
+      });
+      state.currentShapeName = shapeName;
+      refreshStartupList();
+      return { ok: true, shapeName };
+    } catch (err) {
+      return { ok: false, error: (err && err.message) || String(err) };
+    }
+  }
+
+  function onOpenMapping() {
+    return new Promise((resolve) => {
+      showMappingScreen(
+        currentAnalysis,
+        (analysis, overrides) => {
+          state.roleOverrides = overrides !== undefined ? overrides : state.roleOverrides;
+          currentAnalysis = analysis;
+          currentMeta = { title: state.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+          mountLive(null);
+          showView('dashboard');
+          resolve({ ok: true });
+        },
+        () => { showView('dashboard'); resolve({ ok: false, error: 'cancelled' }); }
+      );
+    });
+  }
+
+  function wireDashboardView() {
+    els.dlgThemes.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-theme]');
+      if (!btn || !dlgController) return;
+      state.theme = btn.dataset.theme;
+      syncThemeButtons();
+      dlgController.setTheme(activeTheme());
+      if (!els.dlgSettingsPanel.hidden) renderDialogThemePicker();
+    });
+
+    els.dlgRefresh.addEventListener('click', async () => {
+      if (els.dlgRefresh.dataset.busy) return;
+      els.dlgRefresh.dataset.busy = '1';
+      const original = els.dlgRefresh.textContent;
+      els.dlgRefresh.textContent = 'Refreshing…';
+      try {
+        const seed = currentRawState();
+        const { headers, dataRows } = await host.readRangeForEngine(state.source);
+        const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+        const analysis = window.DashEngine.applyRoleOverrides(rawAnalysis, state.roleOverrides);
+        const changed = currentAnalysis ? window.DashEngine.Reconcile.diffValueTypes(currentAnalysis, analysis) : [];
+        const seedReconciled = window.DashEngine.Reconcile.reconcileDashboardState(analysis, seed);
+        currentAnalysis = analysis;
+        currentMeta = { title: state.title, subtitle: `${analysis.rowCount.toLocaleString('en-US')} rows` };
+        mountLive(seedReconciled);
+        if (changed.length) showBanner(`Column type changed after refresh: ${changed.join(', ')}. Data was recalculated, your filters and settings were kept.`, false);
+        els.dlgRefresh.textContent = 'Refreshed';
+        els.dlgRefreshedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        els.dlgRefresh.textContent = 'Could not refresh';
+        showBanner(`Refresh failed: ${(err && err.message) || String(err)}`, true);
+      }
+      setTimeout(() => { els.dlgRefresh.textContent = original; delete els.dlgRefresh.dataset.busy; }, 2200);
+    });
+
+    els.dlgChangeRange.addEventListener('click', async () => {
+      if (state.pendingChangeRange) return;
+      setStatus('Select a new range on the sheet, then click "Use this range" below.');
+      state.pickingFor = 'change-range';
+      showView('setup');
+      syncIdleFooter();
+      const result = await new Promise((resolve) => { state.pendingChangeRange = { resolve, sourceBefore: state.source, rangeBefore: state.range }; });
+      setStatus('');
+      if (result.ok) {
+        if (result.structureReset) showBanner('The new source has different columns — filters and settings were reset.', false);
+        currentAnalysis = result.analysis;
+        currentMeta = result.meta;
+        currentSourceLabel = sourceLabel();
+        mountLive(result.seedState);
+        showView('dashboard');
+      } else {
+        showView('dashboard');
+        if (result.error && result.error !== 'cancelled') showBanner(`Could not change the data source: ${result.error}`, true);
+      }
+    });
+
+    els.dlgThemes.hidden = true;
+    els.dlgSettingsToggle.addEventListener('click', () => { syncSettingsPanel(); els.dlgSettingsPanel.hidden = false; });
+    els.dlgSettingsClose.addEventListener('click', () => { els.dlgSettingsPanel.hidden = true; });
+    els.dlgCfgTable.addEventListener('change', () => applyWidgetConfig({ showTable: els.dlgCfgTable.checked }));
+    els.dlgCfgFilters.addEventListener('change', () => applyWidgetConfig({ showFilters: els.dlgCfgFilters.checked }));
+  }
+
+  function setStatus(text, isError) { els.dlgStatus.hidden = !text; els.dlgStatus.textContent = text || ''; els.dlgStatus.dataset.error = isError ? '1' : '0'; }
+  function showBanner(text, isError) { els.dlgBanner.hidden = !text; els.dlgBanner.textContent = text || ''; els.dlgBanner.dataset.error = isError ? '1' : '0'; }
+
+  /* ---------- change-range: resumed from the setup view's own Generate/Cancel buttons ---------- */
+  async function completeChangeRangePicking() {
+    const pending = state.pendingChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingChangeRange = null;
+    syncIdleFooter();
+    if (!pending) return;
+    try {
+      const { headers, dataRows } = await host.readRangeForEngine(state.source);
+      const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+      const oldNames = currentAnalysis.columns.map((c) => c.name);
+      const newNames = rawAnalysis.columns.map((c) => c.name);
+      const matches = window.DashEngine.Reconcile.columnsStructureMatches(oldNames, newNames);
+      const overridesToCarry = matches ? state.roleOverrides : await findSavedMappingForSource(sourceLabel());
+      if (!matches) state.roleOverrides = overridesToCarry;
+      const finish = async (finalAnalysis, overrides) => {
+        state.roleOverrides = overrides !== undefined ? overrides : overridesToCarry;
+        if (!state.title) state.title = await computeDefaultTitle();
+        const meta = { title: state.title, subtitle: `${finalAnalysis.rowCount.toLocaleString('en-US')} rows` };
+        pending.resolve({ ok: true, analysis: finalAnalysis, meta, seedState: matches ? currentRawState() : null, structureReset: !matches });
+      };
+      const withOverrides = window.DashEngine.applyRoleOverrides(rawAnalysis, overridesToCarry);
+      if (!matches && withOverrides.columns.length > 6) {
+        showMappingScreen(withOverrides, finish, () => pending.resolve({ ok: false, error: 'cancelled' }));
+      } else {
+        await finish(withOverrides, overridesToCarry);
+      }
+    } catch (err) {
+      pending.resolve({ ok: false, error: (err && err.message) || String(err) });
+    }
+  }
+  function cancelChangeRangePicking() {
+    const pending = state.pendingChangeRange;
+    state.pickingFor = 'generate';
+    state.pendingChangeRange = null;
+    if (pending) { state.source = pending.sourceBefore; state.range = pending.rangeBefore; }
+    if (state.source) showAddress(state.source); else restoreEmptyRange();
+    syncIdleFooter();
+    if (pending) pending.resolve({ ok: false, error: 'cancelled' });
+  }
+
+  /* ---------- settings panel (KPIs, Filters, Charts, Table columns, Theme)
+     — ported from addin/dashboard-dialog.js; every function below is
+     already transport-agnostic there (it only ever touched currentAnalysis
+     in memory), so only pushState()'s message send is gone — remounting
+     via mountLive() is enough since there's no separate window to notify. ---------- */
+  function syncSettingsPanel() {
+    renderDialogThemePicker(); syncFiltersSection(); syncKpiSection(); syncChartsSection(); syncTableColumnsSection();
+    els.dlgCfgTable.checked = widgetConfig.showTable !== false;
+    els.dlgCfgFilters.checked = widgetConfig.showFilters !== false;
+  }
+
+  function renderDialogThemePicker() {
+    window.DashThemePicker.render(
+      els.dlgSettingsThemePicker, { THEMES, Palettes }, { theme: state.theme, palette: state.palette },
+      {
+        onThemeChange: (id) => { state.theme = id; syncThemeButtons(); dlgController.setTheme(activeTheme()); renderDialogThemePicker(); },
+        onPaletteChange: (id) => { state.palette = id; dlgController.setTheme(activeTheme()); renderDialogThemePicker(); },
+      }
+    );
+  }
+
+  function appendLimitHint(container, enabledCount, limit) {
+    if (enabledCount <= limit) return;
+    const p = document.createElement('p');
+    p.className = 'mapping-hint';
+    p.textContent = `Showing the first ${limit} of ${enabledCount} checked — uncheck one to add another.`;
+    container.appendChild(p);
+  }
+
+  const AGGREGATION_OPTIONS = [['', 'Default'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Min'], ['max', 'Max']];
+  function buildAggregationSelect(value, onChange) {
+    const select = document.createElement('select');
+    for (const [v, label] of AGGREGATION_OPTIONS) {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = label;
+      select.appendChild(opt);
+    }
+    select.value = value || '';
+    select.addEventListener('change', () => onChange(select.value || null));
+    return select;
+  }
+
+  function syncKpiSection() {
+    els.dlgSettingsKpis.innerHTML = '';
+    if (!currentAnalysis) return;
+    const measures = currentAnalysis.columns.filter((c) => c.decision.role === 'measure');
+    const enabled = widgetConfig.enabledKpis ? new Set(widgetConfig.enabledKpis) : null;
+    const kpiAggregations = widgetConfig.kpiAggregations || {};
+    for (const col of measures) {
+      const isEnabled = enabled ? enabled.has(col.name) : true;
+      const row = document.createElement('div');
+      row.className = 'chart-config-row';
+      const label = document.createElement('label');
+      label.className = 'settings-row';
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.checked = isEnabled;
+      input.addEventListener('change', () => onKpiToggle(col.name, input.checked, measures));
+      label.append(input, document.createTextNode(' ' + col.name));
+      row.appendChild(label);
+      if (isEnabled) {
+        const controls = document.createElement('div');
+        controls.className = 'chart-config-controls';
+        controls.appendChild(buildAggregationSelect(kpiAggregations[col.name], (agg) => onKpiAggregationChange(col.name, agg)));
+        row.appendChild(controls);
+      }
+      els.dlgSettingsKpis.appendChild(row);
+    }
+    appendLimitHint(els.dlgSettingsKpis, enabled ? enabled.size : measures.length, Engine.Layout.LAYOUT.kpi.maxCards);
+  }
+  function onKpiAggregationChange(name, aggregation) {
+    const current = Object.assign({}, widgetConfig.kpiAggregations);
+    if (aggregation) current[name] = aggregation; else delete current[name];
+    applyWidgetConfig({ kpiAggregations: Object.keys(current).length ? current : null });
+  }
+  function onKpiToggle(name, checked, measures) {
+    const current = widgetConfig.enabledKpis ? new Set(widgetConfig.enabledKpis) : new Set(measures.map((m) => m.name));
+    if (checked) current.add(name); else current.delete(name);
+    applyWidgetConfig({ enabledKpis: [...current] });
+  }
+
+  function syncFiltersSection() {
+    els.dlgSettingsFilters.innerHTML = '';
+    if (!currentAnalysis) return;
+    const dimensions = currentAnalysis.columns.filter((c) => c.decision.role === 'dimension');
+    if (!dimensions.length) {
+      const p = document.createElement('p'); p.className = 'mapping-hint'; p.textContent = 'No filterable columns for this data.';
+      els.dlgSettingsFilters.appendChild(p); return;
+    }
+    const enabled = widgetConfig.enabledDimensions ? new Set(widgetConfig.enabledDimensions) : null;
+    for (const col of dimensions) {
+      const label = document.createElement('label');
+      label.className = 'settings-row';
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.checked = enabled ? enabled.has(col.name) : true;
+      input.addEventListener('change', () => onFilterToggle(col.name, input.checked, dimensions));
+      label.append(input, document.createTextNode(' ' + col.name));
+      els.dlgSettingsFilters.appendChild(label);
+    }
+    appendLimitHint(els.dlgSettingsFilters, enabled ? enabled.size : dimensions.length, Engine.Layout.LAYOUT.filterBar.maxVisible);
+  }
+  function onFilterToggle(name, checked, dimensions) {
+    const current = widgetConfig.enabledDimensions ? new Set(widgetConfig.enabledDimensions) : new Set(dimensions.map((d) => d.name));
+    if (checked) current.add(name); else current.delete(name);
+    applyWidgetConfig({ enabledDimensions: [...current] });
+  }
+
+  function syncTableColumnsSection() {
+    els.dlgSettingsTableColumns.innerHTML = '';
+    if (!currentAnalysis) return;
+    const tableColumns = currentAnalysis.columns.filter((c) => c.decision.role !== 'excluded');
+    if (!tableColumns.length) {
+      const p = document.createElement('p'); p.className = 'mapping-hint'; p.textContent = 'No columns to show.';
+      els.dlgSettingsTableColumns.appendChild(p); return;
+    }
+    const enabled = widgetConfig.enabledTableColumns ? new Set(widgetConfig.enabledTableColumns) : null;
+    for (const col of tableColumns) {
+      const label = document.createElement('label');
+      label.className = 'settings-row';
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.checked = enabled ? enabled.has(col.name) : true;
+      input.addEventListener('change', () => onTableColumnToggle(col.name, input.checked, tableColumns));
+      label.append(input, document.createTextNode(' ' + col.name));
+      els.dlgSettingsTableColumns.appendChild(label);
+    }
+  }
+  function onTableColumnToggle(name, checked, tableColumns) {
+    const current = widgetConfig.enabledTableColumns ? new Set(widgetConfig.enabledTableColumns) : new Set(tableColumns.map((c) => c.name));
+    if (checked) current.add(name); else current.delete(name);
+    applyWidgetConfig({ enabledTableColumns: [...current] });
+  }
+
+  function syncChartsSection() {
+    els.dlgSettingsCharts.innerHTML = '';
+    if (!currentAnalysis) return;
+    const Layout = Engine.Layout;
+    const sel = Layout.selectColumns(currentAnalysis.columns);
+    const allCharts = Layout.planCharts(sel);
+    if (!allCharts.length) {
+      const p = document.createElement('p'); p.className = 'mapping-hint'; p.textContent = 'No eligible charts for this data.';
+      els.dlgSettingsCharts.appendChild(p); return;
+    }
+    const enabledSet = widgetConfig.enabledCharts ? new Set(widgetConfig.enabledCharts) : null;
+    const overridesByChart = widgetConfig.chartOverrides || {};
+    for (const plan of allCharts) {
+      const effective = Layout.applyChartOverride(plan, sel, overridesByChart[plan.id]);
+      const enabled = enabledSet ? enabledSet.has(plan.id) : true;
+      const measureName = (effective.measure || sel.primaryMeasure).name;
+      const row = document.createElement('div');
+      row.className = 'chart-config-row';
+      const head = document.createElement('label');
+      head.className = 'settings-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = enabled;
+      cb.addEventListener('change', () => onChartEnabledToggle(plan.id, cb.checked, allCharts));
+      head.appendChild(cb);
+      const label = plan.kind === 'line' ? `${measureName} over time` : `${measureName} ${effective.overrideType === 'donut' ? 'share of' : 'by'} ${effective.dimension.name}`;
+      head.appendChild(document.createTextNode(' ' + label));
+      row.appendChild(head);
+      if (enabled) {
+        const controls = document.createElement('div');
+        controls.className = 'chart-config-controls';
+        if (plan.kind === 'bar') {
+          const typeSelect = document.createElement('select');
+          for (const t of Layout.CHART_TYPE_OPTIONS.bar) {
+            const opt = document.createElement('option');
+            opt.value = t; opt.textContent = t === 'horizontalBar' ? 'Horizontal bar' : t === 'donut' ? 'Donut' : 'Bar';
+            typeSelect.appendChild(opt);
+          }
+          typeSelect.value = effective.overrideType || Layout.defaultBarType(effective.dimension);
+          typeSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { type: typeSelect.value }));
+          controls.appendChild(typeSelect);
+          const dimSelect = document.createElement('select');
+          const eligibleDims = sel.dimensions.filter((d) => d.profile.uniqueCount <= Layout.LAYOUT.chart.maxDimensionCardinality);
+          for (const d of eligibleDims) {
+            const opt = document.createElement('option');
+            opt.value = d.name; opt.textContent = d.name;
+            dimSelect.appendChild(opt);
+          }
+          dimSelect.value = effective.dimension.name;
+          dimSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { dimensionColumn: dimSelect.value }));
+          controls.appendChild(dimSelect);
+        }
+        const measureSelect = document.createElement('select');
+        for (const m of sel.measures) {
+          const opt = document.createElement('option');
+          opt.value = m.name; opt.textContent = m.name;
+          measureSelect.appendChild(opt);
+        }
+        measureSelect.value = measureName;
+        measureSelect.addEventListener('change', () => onChartOverrideChange(plan.id, { measureColumn: measureSelect.value }));
+        controls.appendChild(measureSelect);
+        controls.appendChild(buildAggregationSelect(effective.overrideAggregation, (agg) => onChartOverrideChange(plan.id, { aggregation: agg })));
+        row.appendChild(controls);
+      }
+      els.dlgSettingsCharts.appendChild(row);
+    }
+    appendLimitHint(els.dlgSettingsCharts, enabledSet ? enabledSet.size : allCharts.length, Layout.LAYOUT.chart.maxCount);
+  }
+  function onChartEnabledToggle(chartId, checked, allCharts) {
+    const current = widgetConfig.enabledCharts ? new Set(widgetConfig.enabledCharts) : new Set(allCharts.map((c) => c.id));
+    if (checked) current.add(chartId); else current.delete(chartId);
+    applyWidgetConfig({ enabledCharts: [...current] });
+  }
+  function onChartOverrideChange(chartId, patch) {
+    const overrides = Object.assign({}, widgetConfig.chartOverrides);
+    overrides[chartId] = Object.assign({}, overrides[chartId], patch);
+    applyWidgetConfig({ chartOverrides: overrides });
+  }
+  function applyWidgetConfig(patch) {
+    widgetConfig = Object.assign({}, widgetConfig, patch);
+    const reconciled = { activeFilters: currentRawState().activeFilters, sort: currentRawState().sort, theme: state.theme, palette: state.palette, widgetConfig };
+    mountLive(reconciled);
+  }
+
+  /* ---------- dashboard list ---------- */
+  function renderDashListItem(d) {
+    const li = document.createElement('li');
+    li.className = 'dash-item';
+    const title = document.createElement('span');
+    title.className = 'dash-item-title';
+    title.textContent = d.payload.title || d.shapeName;
+    li.appendChild(title);
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button'; openBtn.className = 'btn-quiet'; openBtn.textContent = 'Open';
+    openBtn.addEventListener('click', () => openSavedDashboard(d));
+    li.appendChild(openBtn);
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button'; renameBtn.className = 'btn-quiet'; renameBtn.textContent = 'Rename';
+    renameBtn.addEventListener('click', async () => {
+      const next = prompt('Rename dashboard', d.payload.title || '');
+      if (next == null || !next.trim()) return;
+      try {
+        let snapshot;
+        if (d.payload.layoutSpec) snapshot = { layoutSpec: d.payload.layoutSpec };
+        await host.renameDashboard(d.shapeName, next.trim(), snapshot);
+        await Promise.all([refreshStartupList(), showList()]);
+      } catch (err) {
+        els.buildError.textContent = `Could not rename: ${(err && err.message) || err}`;
+        els.buildError.hidden = false;
+      }
+    });
+    li.appendChild(renameBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button'; deleteBtn.className = 'btn-quiet danger'; deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Delete "${d.payload.title || d.shapeName}"? This removes its picture from the sheet too.`)) return;
+      try {
+        await host.deleteDashboard(d.shapeName);
+        await Promise.all([refreshStartupList(), showList()]);
+      } catch (err) {
+        els.buildError.textContent = `Could not delete: ${(err && err.message) || err}`;
+        els.buildError.hidden = false;
+      }
+    });
+    li.appendChild(deleteBtn);
+
+    return li;
+  }
+
+  async function showList() {
+    showView('list');
+    let dashboards = [];
+    try { dashboards = await host.listDashboards(); } catch (err) {
+      els.buildError.textContent = `Could not load your dashboards: ${(err && err.message) || err}`;
+      els.buildError.hidden = false;
+    }
+    els.listEmpty.hidden = !!dashboards.length;
+    els.dashList.innerHTML = '';
+    for (const d of dashboards) els.dashList.appendChild(renderDashListItem(d));
+  }
+
+  async function openSavedDashboard(d) {
+    state.currentShapeName = d.shapeName;
+    state.title = d.payload.title || null;
+    state.theme = d.payload.theme || state.theme;
+    state.palette = d.payload.palette || state.palette;
+    state.roleOverrides = Array.isArray(d.payload.mapping) ? mappingToOverrides(d.payload.mapping) : state.roleOverrides;
+    try {
+      if (d.payload.source) {
+        state.source = d.payload.source;
+        const { headers, dataRows } = await host.readRangeForEngine(state.source);
+        const rawAnalysis = window.DashEngine.analyzeTable(headers, dataRows, ',');
+        currentAnalysis = window.DashEngine.applyRoleOverrides(rawAnalysis, state.roleOverrides);
+        currentMeta = { title: state.title, subtitle: `${currentAnalysis.rowCount.toLocaleString('en-US')} rows` };
+        currentSourceLabel = sourceLabel(state.source);
+        isPro = !!(state.accountStatus && state.accountStatus.isPro);
+        mountLive(null);
+      } else if (d.payload.layoutSpec) {
+        mountFrozenDashboard(d.payload.layoutSpec, d.payload.theme, d.payload.palette);
+      } else {
+        throw new Error('This dashboard has no data to reopen.');
+      }
+      showView('dashboard');
+    } catch (err) {
+      els.buildError.textContent = `Could not open "${d.payload.title || d.shapeName}": ${(err && err.message) || err}`;
+      els.buildError.hidden = false;
+    }
+  }
+
+  /* ---------- view switching ---------- */
+  function showView(name) {
+    els.viewAuth.hidden = name !== 'auth';
+    els.viewSetup.hidden = name !== 'setup';
+    els.viewList.hidden = name !== 'list';
+    els.viewMapping.hidden = name !== 'mapping';
+    els.viewTheme.hidden = name !== 'theme';
+    els.viewProfile.hidden = name !== 'profile';
+    els.viewDashboard.hidden = name !== 'dashboard';
+    els.build.hidden = name !== 'setup';
+    if (name === 'auth') els.accountBar.hidden = true;
+  }
+})();
+</script>
+</body>
+</html>
