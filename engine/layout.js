@@ -36,8 +36,10 @@
     // see the `showWatermark` block in buildSkeleton. A fixed reserved
     // width (not "measure the text and hug it") means this file never
     // needs to know actual rendered text width, which depends on font
-    // metrics only /render knows.
-    watermark: { width: 200 },
+    // metrics only /render knows. Sized for "Made with Dash Architect" at
+    // 1.5x theme.type.axis in the largest theme (light/dark, axis 11.5) —
+    // Format.estimateTextWidth puts that around 240px; 260 leaves margin.
+    watermark: { width: 260 },
     kpi: {
       // Dropped from 6 to 4 (2026-09) — a long measure name in a 5th/6th
       // secondary card had too little width to avoid overlapping its
