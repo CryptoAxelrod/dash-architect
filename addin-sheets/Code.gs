@@ -2,11 +2,30 @@
  * Dash Architect for Google Sheets — the only file in this add-on that
  * touches SpreadsheetApp/DriveApp/Utilities. Everything deterministic
  * (engine/, render/) and everything account-related (addin/auth.js) is
- * loaded unchanged by addin-sheets/app.html from the same hosted origin
- * the Excel add-in uses — see that file's <script> tags. This file is the
- * Apps Script analog of addin/excel-io.js + addin/dashboard-io.js's
- * "touches the host document" halves, called from app.html via
- * google.script.run instead of Excel.run.
+ * loaded unchanged by addin-sheets/sidebar.html and addin-sheets/dashboard.html
+ * from the same hosted origin the Excel add-in uses — see those files'
+ * <script> tags. This file is the Apps Script analog of addin/excel-io.js +
+ * addin/dashboard-io.js's "touches the host document" halves, called from
+ * both pages via google.script.run instead of Excel.run.
+ *
+ * Two UI surfaces, like the Excel add-in (SPEC.md §14.5), for the same
+ * reason: a sidebar is too narrow (~300-360px) for a 1180px dashboard
+ * canvas. Unlike Excel's dialog<->parent messaging (needed because an
+ * Office dialog cannot touch the workbook at all), the sidebar and the
+ * dashboard dialog here never talk to each other directly — there is no
+ * supported way for two separate HtmlService surfaces to message one
+ * another, and building one blind would be unverifiable in this
+ * environment (see SPEC.md §15.1). Instead:
+ *   - the sidebar hands off a small descriptor (which range, which theme,
+ *     which saved role overrides — never the analysis itself) to
+ *     `openDashboardDialog`, which inlines it into the dialog's own HTML at
+ *     render time via HtmlTemplate (`<?!= initialPayloadJson ?>` in
+ *     dashboard.html) — a one-way, one-time handoff, not a channel;
+ *   - after that, the dialog is fully self-sufficient: it re-reads the
+ *     range and reclassifies itself, and every later action (refresh,
+ *     change data range, place on sheet, review column roles) calls this
+ *     file directly, exactly like the sidebar does. Nothing here is
+ *     Excel's protocol re-implemented — it's not needed.
  *
  * Persistent storage note (CLAUDE.md's determinism/zero-network rules do
  * not apply to this file — it's the /addin-equivalent host seam, same as
@@ -26,7 +45,7 @@ var FORMAT_SAMPLE_ROWS = 200; // matches addin-sheets/sheets-io.js's CONFIG.form
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Dash Architect')
-    .addItem('Open', 'showDashArchitect')
+    .addItem('Open', 'showSidebar')
     .addToUi();
 }
 
@@ -34,35 +53,41 @@ function onOpen() {
 // side-panel "open" card some Sheets add-on surfaces show instead of (or
 // alongside) the classic menu item above. Same entry point either way.
 function onHomepage() {
-  showDashArchitect();
+  showSidebar();
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle('Dash Architect'))
     .addSection(CardService.newCardSection().addWidget(
-      CardService.newTextParagraph().setText('Opened in a dialog — you can close this panel.')
+      CardService.newTextParagraph().setText('Opened in the sidebar — you can close this panel.')
     ))
     .build();
 }
 
+function showSidebar() {
+  var html = HtmlService.createHtmlOutputFromFile('sidebar').setTitle('Dash Architect');
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
 /**
- * The add-on's single UI surface. Unlike the Excel add-in's task pane +
- * separate dialog window (forced apart because a ~300-400px task pane
- * can't show a 1180px-wide dashboard canvas — see SPEC.md §14.5), a single
- * Apps Script modeless dialog can simply be sized to fit both the setup
- * flow and the live dashboard, and — critically — stays non-blocking, so
- * "Change data range" still works: the user can select a new range on the
- * sheet while this dialog stays open. This also sidesteps a real platform
- * gap: an Apps Script sidebar and a modeless dialog are separate sandboxed
- * iframes with no supported way to message each other directly the way
- * Office.js's dialog<->parent API guarantees — a second window here would
- * need protocol plumbing this project has no way to verify without a live
- * host. One window, talking straight to this file via google.script.run,
- * has no such gap.
+ * Opens the live/frozen dashboard in its own modeless (non-blocking —
+ * needed for "Change data range" to work) dialog, wide enough for the
+ * 1180px canvas. `payload` is intentionally tiny — see this file's header
+ * comment for why this is a one-time handoff, not a channel:
+ *   - live: {mode:'live', source, roleOverrides, title, theme, palette, shapeName, isPro}
+ *   - frozen: {mode:'frozen', layoutSpec, title, theme, palette}
  */
-function showDashArchitect() {
-  var html = HtmlService.createHtmlOutputFromFile('app')
-    .setWidth(1200)
-    .setHeight(820);
-  SpreadsheetApp.getUi().showModelessDialog(html, 'Dash Architect');
+function openDashboardDialog(payload) {
+  var tmpl = HtmlService.createTemplateFromFile('dashboard');
+  // Escaping every "<" (not just the ones spelling "</script") is
+  // deliberate: a title or sheet name is arbitrary user/cell content
+  // (CLAUDE.md never assumes sheet data is trusted), and this string is
+  // inlined RAW (`<?!= ?>`, not HTML-escaped) into dashboard.html's own
+  // <script> tag — "<" is the only character that lets that content break
+  // out of it. Replacing it with its unicode escape keeps the resulting
+  // JS string value identical while the literal "<" never appears in the
+  // HTML source for the browser's HTML parser to act on.
+  tmpl.initialPayloadJson = JSON.stringify(payload).replace(/</g, '\\u003c');
+  var html = tmpl.evaluate().setWidth(1200).setHeight(820);
+  SpreadsheetApp.getUi().showModelessDialog(html, (payload && payload.title) || 'Dash Architect');
 }
 
 /* ---------- range selection ---------- */
