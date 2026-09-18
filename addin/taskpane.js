@@ -62,6 +62,7 @@
     rangeBeforeChangeRange: null,
     pendingListChangeRange: null, // {dashboard, rangeBeforePick, sourceBeforePick} while pickingFor === 'list-change-range' — a headless change-range for a dashboard that isn't open in any dialog
     accountStatus: null, // {dashboardsCreated, isPro} | null while still loading — drives the free-tier gate in syncIdleFooter()
+    transientErrorTimer: null, // setTimeout id for showTransientError's auto-hide
   };
   const FREE_DASHBOARD_LIMIT = 3; // matches the Paddle "Pro" tier's pitch — see supabase/migrations/0002_pro_flag.sql
 
@@ -144,19 +145,34 @@
           r.load('rowIndex,columnIndex,rowCount,columnCount');
           return { table: t, r };
         });
+        // Body = every selected row after the first (header) row.
+        // getUsedRangeOrNullObject(valuesOnly: true) is a cheap native "is
+        // there any actual cell value in here" check — no raw values read
+        // into JS, unlike readRangeForEngine's full read (only done once
+        // Generate is actually clicked) — see finishPicking's
+        // insufficient-data gate, which is what this feeds.
+        const bodyRange = range.rowCount > 1 ? range.getCell(1, 0).getResizedRange(range.rowCount - 2, range.columnCount - 1) : null;
+        const usedBody = bodyRange ? bodyRange.getUsedRangeOrNullObject(true) : null;
+        if (usedBody) usedBody.load('isNullObject');
         await ctx.sync();
+        // rowCount<=1 (no body rows at all) is already caught by
+        // finishPicking's row-count check before detectSource ever runs, so
+        // usedBody is null here only in a case that never reaches this
+        // check in practice — treated as "has data" rather than
+        // false-flagging it insufficient.
+        const hasData = !usedBody || !usedBody.isNullObject;
 
         const hit = tableGeoms.find(({ r }) =>
           range.rowIndex >= r.rowIndex && range.columnIndex >= r.columnIndex &&
           range.rowIndex + range.rowCount <= r.rowIndex + r.rowCount &&
           range.columnIndex + range.columnCount <= r.columnIndex + r.columnCount
         );
-        if (hit) return { kind: 'table', id: hit.table.id, name: hit.table.name };
+        if (hit) return { kind: 'table', id: hit.table.id, name: hit.table.name, hasData };
 
         const headerRow = range.getCell(0, 0).getResizedRange(0, range.columnCount - 1);
         headerRow.load('values');
         await ctx.sync();
-        return { kind: 'range', address: range.address, headers: headerRow.values[0].map((v) => (v == null ? '' : String(v))) };
+        return { kind: 'range', address: range.address, headers: headerRow.values[0].map((v) => (v == null ? '' : String(v))), hasData };
       });
     },
     async readRangeForEngine(source) {
@@ -248,7 +264,7 @@
     },
     async detectSource() {
       const rows = await readPreviewFixture();
-      return { kind: 'range', address: PREVIEW_ADDRESS, headers: rows[0] };
+      return { kind: 'range', address: PREVIEW_ADDRESS, headers: rows[0], hasData: rows.length > 1 };
     },
     async readRangeForEngine(source) {
       const t0 = performance.now();
@@ -794,14 +810,51 @@
     await maybeOpenClickedDashboard();
   }
 
+  // Reuses the same #build-error banner every other failure in this file
+  // shows (already sits outside <main>, visible regardless of view — see
+  // taskpane.html's comment on it), but auto-hides itself after `ms` — for
+  // a rejected pick, not an ongoing problem the user needs to act on, so it
+  // shouldn't linger the way "could not sign in" etc. do. The `msg` guard
+  // in the timeout means a *different* error shown in the meantime (however
+  // unlikely inside a few seconds) is never hidden underneath this one.
+  function showTransientError(msg, ms) {
+    els.buildError.textContent = msg;
+    els.buildError.hidden = false;
+    if (state.transientErrorTimer) clearTimeout(state.transientErrorTimer);
+    state.transientErrorTimer = setTimeout(() => {
+      if (els.buildError.textContent === msg) els.buildError.hidden = true;
+      state.transientErrorTimer = null;
+    }, ms || 4000);
+  }
+
+  // Insufficient-data gate: a single header row with nothing below it (or a
+  // 1-row/1-column selection) can't build a meaningful dashboard —
+  // engine/layout.js would still produce *something* (a "Row count" of 0),
+  // but that's never what picking an empty range meant. Rejected here,
+  // before state.range/state.source are ever set to it, rather than caught
+  // later at Generate — same reasoning, and partially the same check, as
+  // addin-sheets/sidebar.html's finishPicking (SPEC.md §15.4), completed
+  // here for both add-ins: that one only checked row/column count, not an
+  // otherwise-plausible range whose data rows are all blank.
   async function finishPicking() {
     const r = await host.readSelectionInfo();
     state.picking = false;
     els.hint.hidden = true;
     if (!r) { restoreRange(state.beforePick); return; }
-    setRange(r);
+    if (r.rows <= 1 || r.cols <= 1) {
+      showTransientError(`Not enough data to build a dashboard — that's only ${r.rows} row(s) and ${r.cols} column(s). Select the full table, including its header row and at least one row of data.`);
+      restoreRange(null);
+      return;
+    }
     try {
-      state.source = await host.detectSource();
+      const source = await host.detectSource();
+      if (!source.hasData) {
+        showTransientError('Not enough data to build a dashboard — this range only has a header row, with no data below it. Select a range that includes actual data.');
+        restoreRange(null);
+        return;
+      }
+      setRange(r);
+      state.source = source;
       updateSourceBadge();
       renderProgress(); // sourceLabel() only has something to show once state.source resolves, above
     } catch (err) {

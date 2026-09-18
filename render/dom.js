@@ -516,6 +516,9 @@
       return renderChartWidget(w, state.theme, addToFilter);
     }
 
+    // Fallback only for a filter object without an engine-computed
+    // `maxShown` (shouldn't happen going through engine/layout.js, but this
+    // function has no other way to bound the row if it's ever missing).
     const MAX_CHIPS_SHOWN = 12;
 
     // One row per filterable dimension: an "All" chip (active whenever
@@ -526,11 +529,12 @@
     // uses via addToFilter. `f.values` always covers every value the
     // dimension has (engine/layout.js fills it from the unfiltered row
     // universe on purpose) so picking one never collapses the row down to
-    // just itself. Beyond MAX_CHIPS_SHOWN — already ranked by count,
-    // descending, see engine/aggregate.js#distinctValues — the rest
-    // collapse behind a "+N" chip that expands them in place (mountFrozen
-    // keeps its own separate, inert renderReadOnlyFilterBar — this
-    // function only ever runs in live mode).
+    // just itself. Beyond f.maxShown — engine/layout.js#capFilterChipsToWidth,
+    // sized to fit one row without wrapping, already ranked by count
+    // descending, see engine/aggregate.js#distinctValues — the rest collapse
+    // behind a "+N" chip that expands them in place (mountFrozen keeps its
+    // own separate, inert renderReadOnlyFilterBar — this function only ever
+    // runs in live mode).
     function renderFilterBar(w) {
       const c = state.theme.color;
       // Palette color, not theme.color.accent — see render/svg.js's
@@ -538,7 +542,14 @@
       // like chart series do, not stay a fixed brand green. Always index 0
       // (filters keep that slot even under Spectrum's multiHuePerWidget).
       const filterColor = state.theme.chart.seriesColors[0];
-      const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', overflow: 'hidden' }) });
+      // width reduced by w.reservedRight (engine/layout.js) when a
+      // watermark shares this same rect, so a wrapped/expanded chip row can
+      // never render underneath it — see capFilterChipsToWidth's comment on
+      // why this file no longer just hopes chips stay short of the edge.
+      const wrap = el('div', { style: Object.assign(absRect(w.rect), {
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', gap: '6px', overflow: 'hidden',
+        width: px(w.rect.w - (w.reservedRight || 0)),
+      }) });
 
       function chip(label, isActive, onclick) {
         return el('button', {
@@ -556,7 +567,8 @@
       for (const f of w.filters) {
         const active = state.activeFilters[f.column] || new Set();
         const expanded = state.expandedFilters.has(f.column);
-        const shown = expanded ? f.values : f.values.slice(0, MAX_CHIPS_SHOWN);
+        const cap = f.maxShown != null ? f.maxShown : MAX_CHIPS_SHOWN;
+        const shown = expanded ? f.values : f.values.slice(0, cap);
         const hiddenCount = f.values.length - shown.length;
 
         const row = el('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } });
@@ -766,7 +778,10 @@
     // does nothing on click is worse than no control).
     function renderReadOnlyFilterBar(w) {
       const c = state.theme.color;
-      const wrap = el('div', { style: Object.assign(absRect(w.rect), { display: 'flex', alignItems: 'center', gap: px(state.theme.spacing.sm), flexWrap: 'wrap' }) });
+      const wrap = el('div', { style: Object.assign(absRect(w.rect), {
+        display: 'flex', alignItems: 'center', gap: px(state.theme.spacing.sm), flexWrap: 'wrap', overflow: 'hidden',
+        width: px(w.rect.w - (w.reservedRight || 0)),
+      }) });
       for (const f of w.filters) {
         const active = f.active || [];
         const label = active.length === 0 ? `${f.column}: All` : active.length === 1 ? `${f.column}: ${active[0]}` : `${f.column}: ${active.length} selected`;

@@ -299,6 +299,7 @@
     picking: false,
     pickingTimer: null, // setInterval id — polling stand-in for Office.js's DocumentSelectionChanged push (see host.readSelectionInfo's doc comment in Code.gs)
     sourceBeforePick: null,
+    transientErrorTimer: null, // setTimeout id for showTransientError's auto-hide
   };
   const FREE_DASHBOARD_LIMIT = 3;
   const PADDLE_ENVIRONMENT = 'sandbox';
@@ -672,12 +673,33 @@
     els.hint.hidden = true;
   }
 
+  // Reuses the same #build-error banner every other failure in this sidebar
+  // shows, but auto-hides itself after `ms` — for a rejected pick, not an
+  // ongoing problem the user needs to act on, so it shouldn't linger the
+  // way "could not sign in" etc. do. The `msg` guard in the timeout means a
+  // *different* error shown in the meantime (however unlikely inside a few
+  // seconds) is never hidden underneath this one.
+  function showTransientError(msg, ms) {
+    els.buildError.textContent = msg;
+    els.buildError.hidden = false;
+    if (state.transientErrorTimer) clearTimeout(state.transientErrorTimer);
+    state.transientErrorTimer = setTimeout(() => {
+      if (els.buildError.textContent === msg) els.buildError.hidden = true;
+      state.transientErrorTimer = null;
+    }, ms || 4000);
+  }
+
   // Unlike Excel, where a task pane can find no selection at all, Google
   // Sheets always has an active cell — pressing Done without ever having
   // moved off a trivial default selection doesn't fail, it just quietly
   // captures that one cell. That "worked, but obviously wrong" result (a
   // 1-row/1-column "range") is treated as suspect rather than accepted, so
-  // the reason nothing useful happened is visible instead of a dead end.
+  // the reason nothing useful happened is visible instead of a dead end —
+  // same for a range that's otherwise a plausible shape but whose data rows
+  // are all blank (source.hasData, from Code.gs#detectSource's
+  // Range#isBlank() check) — headers with nothing under them. Both cases
+  // reset the picker to fully empty rather than back to whatever was
+  // selected before, matching Excel's addin/taskpane.js#finishPicking.
   async function finishPicking() {
     stopPicking();
     els.buildError.hidden = true;
@@ -685,9 +707,13 @@
       const source = await host.detectSource();
       if (!source) { restoreRange(state.sourceBeforePick); return; }
       if (source.rows <= 1 || source.cols <= 1) {
-        els.buildError.textContent = `That's only ${source.rows} row(s) and ${source.cols} column(s) — select the full table on the sheet (including its header row), then press Select range again.`;
-        els.buildError.hidden = false;
-        restoreRange(state.sourceBeforePick);
+        showTransientError(`Not enough data to build a dashboard — that's only ${source.rows} row(s) and ${source.cols} column(s). Select the full table on the sheet, including its header row and at least one row of data.`);
+        restoreRange(null);
+        return;
+      }
+      if (!source.hasData) {
+        showTransientError('Not enough data to build a dashboard — this range only has a header row, with no data below it. Select a range that includes actual data.');
+        restoreRange(null);
         return;
       }
       state.source = source;

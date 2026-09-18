@@ -202,6 +202,10 @@
     const r = widget.rect;
     const h = 30;
     const cy = r.y + r.h / 2;
+    // Right edge this row may draw into — reserved space for the watermark
+    // (engine/layout.js#buildSkeleton), when there is one, stays clear
+    // instead of a condensed label potentially running under it.
+    const rightBound = r.x + r.w - (widget.reservedRight || 0);
     let x = r.x;
     let out = '';
 
@@ -209,12 +213,13 @@
       const active = f.active || [];
       const label = active.length === 0 ? `${f.column}: All` : active.length === 1 ? `${f.column}: ${active[0]}` : `${f.column}: ${active.length} selected`;
       const w = Math.min(220, 16 + label.length * 6.4);
+      if (x + w > rightBound) break; // rest silently dropped from this condensed static snapshot — the live dashboard shows the accurate current state
       const filled = active.length > 0;
       out += rect(x, cy - h / 2, w, h, { fill: filled ? filterColor : 'none', stroke: filled ? filterColor : c.rule, 'stroke-width': theme.card.borderWidth, rx: h / 2 });
       out += text(x + w / 2, cy + 4, label, { fill: filled ? c.panel : c.ink, 'font-size': 12.5, 'text-anchor': 'middle', 'font-family': theme.font.family });
       x += w + theme.spacing.sm;
     }
-    if (widget.overflow && widget.overflow.length) {
+    if (widget.overflow && widget.overflow.length && x < rightBound) {
       const label = `+${widget.overflow.length} more`;
       const w = 16 + label.length * 6.4;
       out += rect(x, cy - h / 2, w, h, { fill: 'none', stroke: c.rule, 'stroke-dasharray': '3 2', rx: h / 2 });

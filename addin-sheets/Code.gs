@@ -134,7 +134,16 @@ function detectSource() {
   var info = describeRange_(range);
   var headerRow = range.getSheet().getRange(range.getRow(), range.getColumn(), 1, range.getNumColumns());
   var headers = headerRow.getValues()[0].map(function (v) { return v == null ? '' : String(v); });
-  return { kind: 'range', address: info.address, sheetName: info.sheetName, a1: info.a1, rows: info.rows, cols: info.cols, headers: headers };
+  // Body = every selected row after the first (header) row. Range#isBlank()
+  // is a cheap native "is there anything at all in here" check — no
+  // getValues() round trip into the Apps Script runtime, unlike
+  // readRangeRaw's full read (only done once Generate is actually clicked)
+  // — see sidebar.html's finishPicking insufficient-data gate, which is
+  // what this feeds. info.rows<=1 (no body rows at all) is already caught
+  // there before detectSource ever runs, so this is never actually called
+  // with nothing to check.
+  var hasData = info.rows <= 1 ? false : !range.getSheet().getRange(range.getRow() + 1, range.getColumn(), info.rows - 1, info.cols).isBlank();
+  return { kind: 'range', address: info.address, sheetName: info.sheetName, a1: info.a1, rows: info.rows, cols: info.cols, headers: headers, hasData: hasData };
 }
 
 /**

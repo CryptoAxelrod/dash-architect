@@ -56,10 +56,17 @@ Deno.serve(async (req) => {
   const subscriptionId = rows?.[0]?.paddle_subscription_id;
   if (!subscriptionId) return respond('No active subscription found', 400);
 
+  // 'next_billing_period', not 'immediately': cancelling mid-period must
+  // not cut off access the user already paid for — see
+  // supabase/functions/paddle-webhook's own doc comment, which already
+  // documents this exact intent (Paddle keeps the subscription "active"
+  // with a scheduled_change and only fires subscription.canceled once the
+  // paid period actually ends). This call previously said 'immediately',
+  // contradicting that and revoking Pro the moment someone cancelled.
   const cancelRes = await fetch(`${PADDLE_API_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${PADDLE_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ effective_from: 'immediately' }),
+    body: JSON.stringify({ effective_from: 'next_billing_period' }),
   });
   if (!cancelRes.ok) {
     console.error('Paddle cancel failed', cancelRes.status, await cancelRes.text());

@@ -22,24 +22,33 @@
     margin: { top: 32, right: 28, bottom: 40, left: 28 },
     gap: 28, // vertical gap between major sections
     header: { height: 60 },
-    // One chip-row per filterable dimension (render/dom.js#renderFilterBar) —
-    // sized for the worst case (maxVisible rows) so it never overlaps the
-    // widget below it; most datasets show fewer than maxVisible and just
-    // leave the rest of the box empty, same tradeoff every other fixed
-    // heuristic constant in this file makes. maxVisible dropped from 5 to 4
-    // (2026-09) — 5 rows routinely overflowed this fixed height; the rest
-    // are reachable via widgetConfig.enabledDimensions (settings panel's
-    // new "Filters" section) instead of just disappearing.
-    filterBar: { height: 150, maxVisible: 4 },
-    // Reserves this many px at the right edge of whatever row it's anchored
-    // to (the filter bar's, or the header's if there's no filter bar) —
-    // see the `showWatermark` block in buildSkeleton. A fixed reserved
-    // width (not "measure the text and hug it") means this file never
-    // needs to know actual rendered text width, which depends on font
-    // metrics only /render knows. Sized for "Made with Dash Architect" at
-    // 1.5x theme.type.axis in the largest theme (light/dark, axis 11.5) —
-    // Format.estimateTextWidth puts that around 240px; 260 leaves margin.
-    watermark: { width: 260 },
+    // One chip-row per filterable dimension (render/dom.js#renderFilterBar),
+    // rowHeight tall each — total height is rows * rowHeight (buildSkeleton),
+    // not a flat constant. A flat height (150, sized for maxVisible rows)
+    // used to be here, but a single dimension's own chip row can independently
+    // wrap onto 2+ lines when it has many/long values — see
+    // capFilterChipsToWidth below, which caps chips-per-row so that never
+    // happens instead of just hoping a fixed budget is generous enough (the
+    // previous fix for the same underlying problem: maxVisible dropped from
+    // 5 to 4 rows in 2026-09 because 5 routinely overflowed the old fixed
+    // height — a symptom of the same root cause, not a real fix). The rest
+    // beyond maxVisible are reachable via widgetConfig.enabledDimensions
+    // (settings panel's "Filters" section) instead of just disappearing.
+    filterBar: { rowHeight: 40, maxVisible: 4, maxChipsPerRow: 12 },
+    // width: reserved px at the right edge of whatever row it's anchored to
+    // (the filter bar's, when there is one — see the `showWatermark` block
+    // in buildSkeleton). A fixed reserved width (not "measure the text and
+    // hug it") means this file never needs to know actual rendered text
+    // width, which depends on font metrics only /render knows. Sized for
+    // "Made with Dash Architect" at 1.5x theme.type.axis in the largest
+    // theme (light/dark, axis 11.5) — Format.estimateTextWidth puts that
+    // around 240px; 260 leaves margin.
+    // rowHeight: when there's no filter bar to share a row with, the
+    // watermark gets this own slim row instead of the header's — the
+    // header's right edge is already spoken for by the live dialog's own
+    // "Copy image"/"Place image on sheet" buttons (render/dom.js#renderHeader),
+    // which the watermark used to sit on top of.
+    watermark: { width: 260, rowHeight: 32 },
     kpi: {
       // Dropped from 6 to 4 (2026-09) — a long measure name in a 5th/6th
       // secondary card had too little width to avoid overlapping its
@@ -164,6 +173,43 @@
     return picked && VALID_AGGREGATIONS.includes(picked) ? picked : null;
   }
 
+  // Approximate px-per-character + fixed per-chip chrome (padding/border/
+  // gap), calibrated against render/dom.js's actual filter chip styling
+  // (12px font, 6px/13px padding, 1px border, 6px gap between chips) — not
+  // exact font metrics, which only /render's DOM/canvas could give us (see
+  // CLAUDE.md #2, this file has no browser access) — same spirit as
+  // LAYOUT.chart.longLabelChars above: good enough to decide how many chips
+  // fit on one line without ever measuring real rendered text. Deliberately
+  // errs toward showing fewer chips than technically fit rather than more —
+  // an early "+N" is a minor inconvenience, a wrapped chip row that collides
+  // with the next filter or the watermark is the actual bug this prevents.
+  const FILTER_CHIP_CHROME_PX = 34;
+  const FILTER_CHIP_CHAR_PX = 7.2;
+  const FILTER_LABEL_CHAR_PX = 6.4;
+  const FILTER_ALL_CHIP_PX = 46;
+
+  // How many of `values` (already sorted by count desc — see
+  // Aggregate.distinctValues) fit on a single chip row of `availableWidth`
+  // px, alongside the "${column}:" label and the "All" chip that always
+  // precede them. Always at least 1 when there's anything to show at all,
+  // even if it doesn't quite fit — showing nothing looks broken, a single
+  // slightly-overflowing chip does not. Capped at maxChipsPerRow regardless
+  // of how much width is available, so a wide canvas with many short values
+  // doesn't turn into a wall of chips.
+  function capFilterChipsToWidth(columnName, values, availableWidth) {
+    let used = columnName.length * FILTER_LABEL_CHAR_PX + 10 + FILTER_ALL_CHIP_PX;
+    let shown = 0;
+    for (const v of values) {
+      if (shown >= LAYOUT.filterBar.maxChipsPerRow) break;
+      const label = `${v.value} (${v.count})`;
+      const chipWidth = FILTER_CHIP_CHROME_PX + label.length * FILTER_CHIP_CHAR_PX;
+      if (shown > 0 && used + chipWidth > availableWidth) break;
+      used += chipWidth;
+      shown++;
+    }
+    return Math.max(shown, values.length ? 1 : 0);
+  }
+
   // --- skeleton: widget ids/types/rects and the static (data-independent)
   // parts of each widget. Positions never change with filters or theme. ---
 
@@ -219,30 +265,56 @@
     y += LAYOUT.header.height + LAYOUT.gap;
 
     if (filterDims.length || overflowDims.length) {
+      // One rowHeight per shown dimension, plus one more for the "+N more
+      // filters not shown" line when there are more eligible dimensions
+      // than maxVisible — see render/dom.js#renderFilterBar. Each
+      // dimension's own row is capped to fit on one line by
+      // capFilterChipsToWidth (engine/layout.js#fillWidgetData), so unlike
+      // the old flat-150px constant this total is never a guess.
+      const filterRows = filterDims.length + (overflowDims.length ? 1 : 0);
+      const filterBarHeight = filterRows * LAYOUT.filterBar.rowHeight;
       widgets.push({
         id: 'filters',
         type: 'filterBar',
-        rect: { x: x0, y, w: W, h: LAYOUT.filterBar.height },
+        rect: { x: x0, y, w: W, h: filterBarHeight },
         filters: filterDims.map((d) => ({ column: d.name })),
         overflow: overflowDims.map((d) => d.name),
+        // Width the watermark reserves at the right edge of this same rect
+        // (see the showWatermark block below) — carried on the widget so
+        // render/dom.js can keep chip rows out of that column instead of
+        // relying on them just happening not to reach that far. 0 (no
+        // reservation) when there's no watermark to collide with.
+        reservedRight: cfg.showWatermark ? LAYOUT.watermark.width : 0,
       });
-      y += LAYOUT.filterBar.height + LAYOUT.gap;
+      y += filterBarHeight + LAYOUT.gap;
     }
 
-    // Anchored to the filter bar's row when there is one (the rightmost
-    // widget.watermark.width px of it — filter chips rarely come close to
-    // using the full row width, see render/*.js's renderFilterBar), else
-    // to the header row, which is always present. Either way this is
-    // widgets[widgets.length - 1] at this exact point: header alone was
-    // just pushed if showFilters/filterDims left the block above skipped,
-    // filters last if not.
+    // Anchored to the filter bar's row when there is one — its rightmost
+    // widget.watermark.width px, reserved out of the filter bar's own
+    // available width above (see filterBar.reservedRight), where there's
+    // always unused space next to a handful of chips. When there's no
+    // filter bar, it gets its own dedicated slim row instead of sharing the
+    // header's: the header's right edge is already spoken for by the live
+    // dialog's own "Copy image"/"Place image on sheet" buttons
+    // (render/dom.js#renderHeader) in every render, not just wide-data ones,
+    // so there's no "usually enough room" case here the way there is for
+    // filter chips.
     if (cfg.showWatermark) {
-      const host = widgets[widgets.length - 1];
-      widgets.push({
-        id: 'watermark',
-        type: 'watermark',
-        rect: { x: host.rect.x + host.rect.w - LAYOUT.watermark.width, y: host.rect.y, w: LAYOUT.watermark.width, h: host.rect.h },
-      });
+      if (filterDims.length || overflowDims.length) {
+        const host = widgets[widgets.length - 1];
+        widgets.push({
+          id: 'watermark',
+          type: 'watermark',
+          rect: { x: host.rect.x + host.rect.w - LAYOUT.watermark.width, y: host.rect.y, w: LAYOUT.watermark.width, h: host.rect.h },
+        });
+      } else {
+        widgets.push({
+          id: 'watermark',
+          type: 'watermark',
+          rect: { x: x0 + W - LAYOUT.watermark.width, y, w: LAYOUT.watermark.width, h: LAYOUT.watermark.rowHeight },
+        });
+        y += LAYOUT.watermark.rowHeight + LAYOUT.gap;
+      }
     }
 
     const hasKpis = kpiMeasures.length > 0;
@@ -385,12 +457,24 @@
       // with no way back to the rest. `active` still reflects the current
       // selection; only which chips exist is unaffected by filtering.
       const universe = allRowIndices || rowIndices;
+      // rect.w minus whatever the watermark reserves (buildSkeleton) — the
+      // actual on-screen width a chip row is allowed to fill without
+      // running into it.
+      const availableWidth = Math.max(0, widget.rect.w - (widget.reservedRight || 0));
       return Object.assign({}, widget, {
-        filters: widget.filters.map((f) => ({
-          column: f.column,
-          values: Aggregate.distinctValues(columnsByName.get(f.column), universe),
-          active: meta.activeFilters && meta.activeFilters[f.column] ? [...meta.activeFilters[f.column]] : [],
-        })),
+        filters: widget.filters.map((f) => {
+          const values = Aggregate.distinctValues(columnsByName.get(f.column), universe);
+          return {
+            column: f.column,
+            // Full, unsliced list — render/dom.js's "+N"/expand affordance
+            // still needs every value to expand into. maxShown is just the
+            // default (collapsed) count that's guaranteed to fit one line;
+            // see capFilterChipsToWidth above.
+            values,
+            maxShown: capFilterChipsToWidth(f.column, values, availableWidth),
+            active: meta.activeFilters && meta.activeFilters[f.column] ? [...meta.activeFilters[f.column]] : [],
+          };
+        }),
       });
     }
 
